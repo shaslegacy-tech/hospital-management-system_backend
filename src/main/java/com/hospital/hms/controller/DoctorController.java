@@ -1,30 +1,23 @@
 package com.hospital.hms.controller;
 
+import com.hospital.hms.dto.request.DoctorOnboardRequestDTO;
 import com.hospital.hms.dto.request.DoctorRequestDTO;
 import com.hospital.hms.dto.response.DoctorResponseDTO;
-import com.hospital.hms.dto.request.DoctorOnboardRequestDTO;
-import com.hospital.hms.model.Department;
-import com.hospital.hms.model.Doctor;
-import com.hospital.hms.model.User;
-import com.hospital.hms.model.enums.Role;
-import com.hospital.hms.repository.DepartmentRepository;
-import com.hospital.hms.repository.DoctorRepository;
-import com.hospital.hms.repository.UserRepository;
 import com.hospital.hms.service.DoctorService;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @Tag(name = "Doctors",
         description = "Manage doctor profiles and availability")
 @RestController
@@ -34,16 +27,6 @@ public class DoctorController {
     @Autowired
     private DoctorService doctorService;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private DepartmentRepository departmentRepository;
-
-    @Autowired
-    @Lazy
-    private PasswordEncoder passwordEncoder;
-
     // GET /api/doctors
     @GetMapping
     public ResponseEntity<List<DoctorResponseDTO>>
@@ -52,8 +35,7 @@ public class DoctorController {
                 doctorService.getAllDoctors());
     }
 
-    //GET-Search Functionality
-
+    // GET /api/doctors/search
     @Operation(
             summary = "Search doctors with filters",
             description = "Search doctors by name, " +
@@ -78,10 +60,12 @@ public class DoctorController {
             @RequestParam(defaultValue = "10") int size) {
 
         return ResponseEntity.ok(
-                doctorService.searchDoctors(name, specialization,
-                        departmentId, minExperience, available,
+                doctorService.searchDoctors(
+                        name, specialization, departmentId,
+                        minExperience, available,
                         maxFee, page, size));
     }
+
     // GET /api/doctors/available
     @GetMapping("/available")
     public ResponseEntity<List<DoctorResponseDTO>>
@@ -90,7 +74,7 @@ public class DoctorController {
                 doctorService.getAvailableDoctors());
     }
 
-    // GET /api/doctors/1
+    // GET /api/doctors/{id}
     @GetMapping("/{id}")
     public ResponseEntity<DoctorResponseDTO>
     getDoctorById(@PathVariable Long id) {
@@ -98,7 +82,7 @@ public class DoctorController {
                 doctorService.getDoctorById(id));
     }
 
-    // GET /api/doctors/department/1
+    // GET /api/doctors/department/{departmentId}
     @GetMapping("/department/{departmentId}")
     public ResponseEntity<List<DoctorResponseDTO>>
     getDoctorsByDepartment(
@@ -106,6 +90,38 @@ public class DoctorController {
         return ResponseEntity.ok(
                 doctorService.getDoctorsByDepartment(
                         departmentId));
+    }
+
+    // GET /api/doctors/user/{userId}
+    @GetMapping("/user/{userId}")
+    @PreAuthorize("hasAnyRole('ADMIN','DOCTOR'," +
+            "'PATIENT','RECEPTIONIST')")
+    public ResponseEntity<DoctorResponseDTO>
+    getDoctorByUserId(@PathVariable Long userId) {
+        return ResponseEntity.ok(
+                doctorService.getDoctorByUserId(userId));
+    }
+
+    // ✅ NEW - GET /api/doctors/{id}/available-slots
+    @Operation(
+            summary = "Get available time slots for a " +
+                    "doctor on a given date",
+            description = "Generates slots between the " +
+                    "doctor's working hours at their " +
+                    "configured interval, excluding " +
+                    "already-booked slots and (for today)" +
+                    " any slot in the past."
+    )
+    @GetMapping("/{id}/available-slots")
+    @PreAuthorize("hasAnyRole('ADMIN','DOCTOR'," +
+            "'PATIENT','RECEPTIONIST')")
+    public ResponseEntity<List<String>> getAvailableSlots(
+            @PathVariable Long id,
+            @RequestParam String date) {
+        log.info("Fetching available slots for doctor {}" +
+                " on {}", id, date);
+        return ResponseEntity.ok(
+                doctorService.getAvailableSlots(id, date));
     }
 
     // POST /api/doctors — ADMIN only
@@ -117,7 +133,24 @@ public class DoctorController {
                 doctorService.createDoctor(dto));
     }
 
-    // PUT /api/doctors/1 — ADMIN only
+    // POST /api/doctors/onboard — ADMIN only
+    @Operation(
+            summary = "Onboard a new doctor",
+            description = "Admin creates both the login " +
+                    "account and the doctor profile in a " +
+                    "single step — no separate " +
+                    "registration needed."
+    )
+    @PostMapping("/onboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<DoctorResponseDTO> onboardDoctor(
+            @Valid @RequestBody DoctorOnboardRequestDTO dto) {
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(doctorService.onboardDoctor(dto));
+    }
+
+    // PUT /api/doctors/{id} — ADMIN only
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DoctorResponseDTO> updateDoctor(
@@ -127,7 +160,7 @@ public class DoctorController {
                 doctorService.updateDoctor(id, dto));
     }
 
-    // PUT /api/doctors/1/availability — ADMIN, DOCTOR
+    // PUT /api/doctors/{id}/availability — ADMIN, DOCTOR
     @PutMapping("/{id}/availability")
     @PreAuthorize("hasAnyRole('ADMIN','DOCTOR')")
     public ResponseEntity<DoctorResponseDTO>
@@ -136,7 +169,7 @@ public class DoctorController {
                 doctorService.toggleAvailability(id));
     }
 
-    // DELETE /api/doctors/1 — ADMIN only
+    // DELETE /api/doctors/{id} — ADMIN only
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> deleteDoctor(
@@ -145,32 +178,4 @@ public class DoctorController {
         return ResponseEntity.ok(
                 "Doctor profile deleted successfully");
     }
-
-    // GET /api/doctors/user/1
-    @GetMapping("/user/{userId}")
-    @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','PATIENT','RECEPTIONIST')")
-    public ResponseEntity<DoctorResponseDTO> getDoctorByUserId(
-            @PathVariable Long userId) {
-        return ResponseEntity.ok(
-                doctorService.getDoctorByUserId(userId));
-    }
-
-
-    @Operation(
-            summary = "Onboard a new doctor",
-            description = "Admin creates both the login account and the doctor "
-                    + "profile in a single step — no separate registration needed."
-    )
-    @PostMapping("/onboard")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<DoctorResponseDTO> onboardDoctor(
-            @Valid @RequestBody DoctorOnboardRequestDTO dto) {
-
-        DoctorResponseDTO response = doctorService.onboardDoctor(dto);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
-    }
-
-
-
 }

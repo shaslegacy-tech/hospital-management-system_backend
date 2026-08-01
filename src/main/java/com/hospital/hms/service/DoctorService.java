@@ -4,6 +4,7 @@ import com.hospital.hms.dto.request.DoctorOnboardRequestDTO;
 import com.hospital.hms.dto.request.DoctorRequestDTO;
 import com.hospital.hms.dto.response.DoctorResponseDTO;
 import com.hospital.hms.model.*;
+import com.hospital.hms.model.enums.AppointmentStatus;
 import com.hospital.hms.model.enums.Role;
 import com.hospital.hms.repository.*;
 import com.hospital.hms.repository.spec.DoctorSpecification;
@@ -15,7 +16,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.*;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -32,8 +38,12 @@ public class DoctorService {
     private DepartmentRepository departmentRepository;
 
     @Autowired
+    private AppointmentRepository appointmentRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
+    // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
     private DoctorResponseDTO toDTO(Doctor doctor) {
         return new DoctorResponseDTO(
                 doctor.getId(),
@@ -47,7 +57,17 @@ public class DoctorService {
                 doctor.getConsultationFee(),
                 doctor.getBio(),
                 doctor.isAvailable(),
-                doctor.getCreatedAt()
+                doctor.getCreatedAt(),
+                // ✅ NEW — 3 extra fields
+                doctor.getWorkStartTime() != null
+                        ? doctor.getWorkStartTime().toString()
+                        : "09:00",
+                doctor.getWorkEndTime() != null
+                        ? doctor.getWorkEndTime().toString()
+                        : "17:00",
+                doctor.getSlotDurationMinutes() != null
+                        ? doctor.getSlotDurationMinutes()
+                        : 30
         );
     }
 
@@ -89,9 +109,8 @@ public class DoctorService {
                 .collect(Collectors.toList());
     }
 
-    // POST - create doctor profile
-    public DoctorResponseDTO createDoctor(
-            DoctorRequestDTO dto) {
+    // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
+    public DoctorResponseDTO createDoctor(DoctorRequestDTO dto) {
         log.info("Creating doctor profile for user: {}",
                 dto.getUserId());
 
@@ -100,13 +119,11 @@ public class DoctorService {
                         new RuntimeException(
                                 "User not found: " + dto.getUserId()));
 
-        // Check user has DOCTOR role
         if (!user.getRole().name().equals("DOCTOR")) {
             throw new RuntimeException(
                     "User must have DOCTOR role!");
         }
 
-        // Check doctor profile doesn't exist
         if (doctorRepository.findByUserId(
                 dto.getUserId()).isPresent()) {
             throw new RuntimeException(
@@ -129,10 +146,21 @@ public class DoctorService {
         doctor.setBio(dto.getBio());
         doctor.setAvailable(true);
 
+        // ✅ NEW
+        if (dto.getWorkStartTime() != null)
+            doctor.setWorkStartTime(
+                    LocalTime.parse(dto.getWorkStartTime()));
+        if (dto.getWorkEndTime() != null)
+            doctor.setWorkEndTime(
+                    LocalTime.parse(dto.getWorkEndTime()));
+        if (dto.getSlotDurationMinutes() != null)
+            doctor.setSlotDurationMinutes(
+                    dto.getSlotDurationMinutes());
+
         return toDTO(doctorRepository.save(doctor));
     }
 
-    // PUT - update doctor
+    // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
     public DoctorResponseDTO updateDoctor(Long id,
                                           DoctorRequestDTO dto) {
         log.info("Updating doctor: {}", id);
@@ -153,6 +181,17 @@ public class DoctorService {
         doctor.setExperienceYears(dto.getExperienceYears());
         doctor.setConsultationFee(dto.getConsultationFee());
         doctor.setBio(dto.getBio());
+
+        // ✅ NEW
+        if (dto.getWorkStartTime() != null)
+            doctor.setWorkStartTime(
+                    LocalTime.parse(dto.getWorkStartTime()));
+        if (dto.getWorkEndTime() != null)
+            doctor.setWorkEndTime(
+                    LocalTime.parse(dto.getWorkEndTime()));
+        if (dto.getSlotDurationMinutes() != null)
+            doctor.setSlotDurationMinutes(
+                    dto.getSlotDurationMinutes());
 
         return toDTO(doctorRepository.save(doctor));
     }
@@ -181,7 +220,7 @@ public class DoctorService {
         doctorRepository.delete(doctor);
     }
 
-    //Search Functionality
+    // Search Functionality
     public Page<DoctorResponseDTO> searchDoctors(
             String name,
             String specialization,
@@ -216,34 +255,39 @@ public class DoctorService {
         Doctor doctor = doctorRepository.findByUserId(userId)
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "Doctor profile not found for user: " + userId));
+                                "Doctor profile not found for user: "
+                                        + userId));
         return toDTO(doctor);
     }
 
+    // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
     @Transactional
-    public DoctorResponseDTO onboardDoctor(DoctorOnboardRequestDTO dto) {
+    public DoctorResponseDTO onboardDoctor(
+            DoctorOnboardRequestDTO dto) {
         log.info("Onboarding new doctor: {}", dto.getEmail());
 
-        // ──── Validate uniqueness ────
-        if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
-            throw new RuntimeException("A user with this email already exists!");
+        if (userRepository.findByEmail(
+                dto.getEmail()).isPresent()) {
+            throw new RuntimeException(
+                    "A user with this email already exists!");
         }
 
-        // ──── Validate department ────
-        Department department = departmentRepository.findById(dto.getDepartmentId())
-                .orElseThrow(() -> new RuntimeException(
-                        "Department not found: " + dto.getDepartmentId()));
+        Department department = departmentRepository
+                .findById(dto.getDepartmentId())
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Department not found: " +
+                                        dto.getDepartmentId()));
 
-        // ──── Step 1: Create the login account ────
         User user = new User();
         user.setName(dto.getName());
         user.setEmail(dto.getEmail());
-        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setPassword(
+                passwordEncoder.encode(dto.getPassword()));
         user.setPhone(dto.getPhone());
         user.setRole(Role.DOCTOR);
         user = userRepository.save(user);
 
-        // ──── Step 2: Create the doctor profile ────
         Doctor doctor = new Doctor();
         doctor.setUser(user);
         doctor.setDepartment(department);
@@ -252,10 +296,77 @@ public class DoctorService {
         doctor.setConsultationFee(dto.getConsultationFee());
         doctor.setBio(dto.getBio());
         doctor.setAvailable(true);
+
+        // ✅ NEW
+        if (dto.getWorkStartTime() != null)
+            doctor.setWorkStartTime(
+                    LocalTime.parse(dto.getWorkStartTime()));
+        if (dto.getWorkEndTime() != null)
+            doctor.setWorkEndTime(
+                    LocalTime.parse(dto.getWorkEndTime()));
+        if (dto.getSlotDurationMinutes() != null)
+            doctor.setSlotDurationMinutes(
+                    dto.getSlotDurationMinutes());
+
         doctor = doctorRepository.save(doctor);
 
-        log.info("Doctor onboarded: userId={}, doctorId={}", user.getId(), doctor.getId());
+        log.info("Doctor onboarded: userId={}, doctorId={}",
+                user.getId(), doctor.getId());
         return toDTO(doctor);
     }
 
+    // ✅ NEW - available slots logic moved to service
+    public List<String> getAvailableSlots(
+            Long doctorId, String date) {
+        log.info("Fetching available slots for doctor {}" +
+                " on {}", doctorId, date);
+
+        Doctor doctor = doctorRepository.findById(doctorId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Doctor not found!"));
+
+        LocalDate targetDate = LocalDate.parse(date);
+
+        LocalTime start = doctor.getWorkStartTime() != null
+                ? doctor.getWorkStartTime()
+                : LocalTime.of(9, 0);
+        LocalTime end = doctor.getWorkEndTime() != null
+                ? doctor.getWorkEndTime()
+                : LocalTime.of(17, 0);
+        int duration = doctor.getSlotDurationMinutes() != null
+                ? doctor.getSlotDurationMinutes()
+                : 30;
+
+        List<Appointment> existing = appointmentRepository
+                .findByDoctorIdAndAppointmentDate(
+                        doctorId, targetDate);
+
+        Set<String> bookedTimes = existing.stream()
+                .filter(a -> a.getStatus()
+                        != AppointmentStatus.CANCELLED)
+                .map(a -> a.getAppointmentTime()
+                        .toString().substring(0, 5))
+                .collect(Collectors.toSet());
+
+        boolean isToday = targetDate.isEqual(LocalDate.now());
+        LocalTime now = LocalTime.now();
+
+        List<String> slots = new ArrayList<>();
+        LocalTime cursor = start;
+
+        while (cursor.isBefore(end)) {
+            String slotStr = cursor.format(
+                    DateTimeFormatter.ofPattern("HH:mm"));
+            boolean isBooked = bookedTimes.contains(slotStr);
+            boolean isPast = isToday && cursor.isBefore(now);
+
+            if (!isBooked && !isPast) {
+                slots.add(slotStr);
+            }
+            cursor = cursor.plusMinutes(duration);
+        }
+
+        return slots;
+    }
 }

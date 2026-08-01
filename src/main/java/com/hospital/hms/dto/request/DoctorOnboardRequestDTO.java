@@ -30,4 +30,8 @@ public class DoctorOnboardRequestDTO {
     private Double consultationFee;
 
     private String bio;
+
+    private String workStartTime;   // "09:00"
+    private String workEndTime;     // "17:00"
+    private Integer slotDurationMinutes;  // 30
 }

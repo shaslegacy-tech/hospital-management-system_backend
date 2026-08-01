@@ -19,4 +19,7 @@ public class DoctorResponseDTO {
     private String bio;
     private boolean available;
     private LocalDateTime createdAt;
+    private String workStartTime;
+    private String workEndTime;
+    private Integer slotDurationMinutes;
 }
