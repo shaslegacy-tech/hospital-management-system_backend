@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -41,5 +43,25 @@ public class AuthController {
     public ResponseEntity<AuthResponseDTO> login(
             @Valid @RequestBody LoginRequestDTO dto) {
         return ResponseEntity.ok(authService.login(dto));
+    }
+
+    @Operation(
+            summary = "Change your password",
+            description = "Any authenticated user (any role) " +
+                    "can change their own password after " +
+                    "confirming their current one."
+    )
+    @PostMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<String> changePassword(
+            @Valid @RequestBody ChangePasswordRequestDTO dto,
+            Authentication authentication) {
+//        log.info("Password change requested by: {}",
+//                authentication.getName());
+
+        String result = authService.changePassword(
+                authentication.getName(), dto);
+
+        return ResponseEntity.ok(result);
     }
 }

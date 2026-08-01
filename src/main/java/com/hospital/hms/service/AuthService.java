@@ -105,4 +105,35 @@ public class AuthService implements UserDetailsService {
                 user.getRole()
         );
     }
+
+     public String changePassword(String email,
+                                 ChangePasswordRequestDTO dto) {
+        log.info("Password change requested by: {}", email);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new RuntimeException("User not found!"));
+
+        if (!passwordEncoder.matches(
+                dto.getCurrentPassword(), user.getPassword())) {
+            throw new RuntimeException(
+                    "Current password is incorrect!");
+        }
+
+        if (passwordEncoder.matches(
+                dto.getNewPassword(), user.getPassword())) {
+            throw new RuntimeException(
+                    "New password must be different " +
+                            "from current password!");
+        }
+
+        user.setPassword(
+                passwordEncoder.encode(dto.getNewPassword()));
+        userRepository.save(user);
+
+        log.info("Password changed successfully for user: {}",
+                user.getId());
+
+        return "Password updated successfully";
+    }
 }
