@@ -1,13 +1,17 @@
 package com.hospital.hms.service;
 
+import com.hospital.hms.dto.request.DoctorOnboardRequestDTO;
 import com.hospital.hms.dto.request.DoctorRequestDTO;
 import com.hospital.hms.dto.response.DoctorResponseDTO;
 import com.hospital.hms.model.*;
+import com.hospital.hms.model.enums.Role;
 import com.hospital.hms.repository.*;
 import com.hospital.hms.repository.spec.DoctorSpecification;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.*;
 
@@ -26,6 +30,9 @@ public class DoctorService {
 
     @Autowired
     private DepartmentRepository departmentRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     private DoctorResponseDTO toDTO(Doctor doctor) {
         return new DoctorResponseDTO(
@@ -210,6 +217,44 @@ public class DoctorService {
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Doctor profile not found for user: " + userId));
+        return toDTO(doctor);
+    }
+
+    @Transactional
+    public DoctorResponseDTO onboardDoctor(DoctorOnboardRequestDTO dto) {
+        log.info("Onboarding new doctor: {}", dto.getEmail());
+
+        // ──── Validate uniqueness ────
+        if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
+            throw new RuntimeException("A user with this email already exists!");
+        }
+
+        // ──── Validate department ────
+        Department department = departmentRepository.findById(dto.getDepartmentId())
+                .orElseThrow(() -> new RuntimeException(
+                        "Department not found: " + dto.getDepartmentId()));
+
+        // ──── Step 1: Create the login account ────
+        User user = new User();
+        user.setName(dto.getName());
+        user.setEmail(dto.getEmail());
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setPhone(dto.getPhone());
+        user.setRole(Role.DOCTOR);
+        user = userRepository.save(user);
+
+        // ──── Step 2: Create the doctor profile ────
+        Doctor doctor = new Doctor();
+        doctor.setUser(user);
+        doctor.setDepartment(department);
+        doctor.setSpecialization(dto.getSpecialization());
+        doctor.setExperienceYears(dto.getExperienceYears());
+        doctor.setConsultationFee(dto.getConsultationFee());
+        doctor.setBio(dto.getBio());
+        doctor.setAvailable(true);
+        doctor = doctorRepository.save(doctor);
+
+        log.info("Doctor onboarded: userId={}, doctorId={}", user.getId(), doctor.getId());
         return toDTO(doctor);
     }
 

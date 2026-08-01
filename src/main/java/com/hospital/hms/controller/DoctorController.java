@@ -2,7 +2,18 @@ package com.hospital.hms.controller;
 
 import com.hospital.hms.dto.request.DoctorRequestDTO;
 import com.hospital.hms.dto.response.DoctorResponseDTO;
+import com.hospital.hms.dto.request.DoctorOnboardRequestDTO;
+import com.hospital.hms.model.Department;
+import com.hospital.hms.model.Doctor;
+import com.hospital.hms.model.User;
+import com.hospital.hms.model.enums.Role;
+import com.hospital.hms.repository.DepartmentRepository;
+import com.hospital.hms.repository.DoctorRepository;
+import com.hospital.hms.repository.UserRepository;
 import com.hospital.hms.service.DoctorService;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -22,6 +33,16 @@ public class DoctorController {
 
     @Autowired
     private DoctorService doctorService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private DepartmentRepository departmentRepository;
+
+    @Autowired
+    @Lazy
+    private PasswordEncoder passwordEncoder;
 
     // GET /api/doctors
     @GetMapping
@@ -133,5 +154,23 @@ public class DoctorController {
         return ResponseEntity.ok(
                 doctorService.getDoctorByUserId(userId));
     }
+
+
+    @Operation(
+            summary = "Onboard a new doctor",
+            description = "Admin creates both the login account and the doctor "
+                    + "profile in a single step — no separate registration needed."
+    )
+    @PostMapping("/onboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<DoctorResponseDTO> onboardDoctor(
+            @Valid @RequestBody DoctorOnboardRequestDTO dto) {
+
+        DoctorResponseDTO response = doctorService.onboardDoctor(dto);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+
 
 }
