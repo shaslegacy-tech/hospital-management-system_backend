@@ -21,6 +21,9 @@ public class PrescriptionService {
     @Autowired
     private MedicalRecordRepository medicalRecordRepository;
 
+    @Autowired
+    private NotificationService notificationService;
+
     private PrescriptionResponseDTO toDTO(Prescription p) {
         return new PrescriptionResponseDTO(
                 p.getId(),
@@ -62,8 +65,30 @@ public class PrescriptionService {
         prescription.setDuration(dto.getDuration());
         prescription.setInstructions(dto.getInstructions());
 
-        return toDTO(prescriptionRepository
-                .save(prescription));
+        Prescription saved =
+                prescriptionRepository.save(prescription);
+
+        // Notify patient — new prescription added
+        notificationService.notify(
+                saved.getMedicalRecord()
+                        .getAppointment()
+                        .getPatient()
+                        .getUser(),
+                "PRESCRIPTION_ADDED",
+                "Dr. " +
+                        saved.getMedicalRecord()
+                                .getAppointment()
+                                .getDoctor()
+                                .getUser()
+                                .getName() +
+                        " added a new prescription (" +
+                        saved.getMedicineName() +
+                        ") to your record",
+                "/records"
+        );
+
+        log.info("Prescription added, notification sent!");
+        return toDTO(saved);
     }
 
     // DELETE prescription

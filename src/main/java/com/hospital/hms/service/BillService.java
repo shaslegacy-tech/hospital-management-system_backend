@@ -1,7 +1,6 @@
 package com.hospital.hms.service;
 
 import com.hospital.hms.dto.request.*;
-import com.hospital.hms.dto.response.AppointmentResponseDTO;
 import com.hospital.hms.dto.response.BillResponseDTO;
 import com.hospital.hms.model.*;
 import com.hospital.hms.model.enums.*;
@@ -30,6 +29,9 @@ public class BillService {
 
     @Autowired
     private EmailService emailService;
+
+    @Autowired
+    private NotificationService notificationService;
 
     private BillResponseDTO toDTO(Bill bill) {
         return new BillResponseDTO(
@@ -129,11 +131,25 @@ public class BillService {
         // Send bill email
         emailService.sendBillGeneratedEmail(saved);
 
-        log.info("Bill generated + email sent!");
+        // Notify patient — new bill created
+        notificationService.notify(
+                saved.getAppointment()
+                        .getPatient().getUser(),
+                "BILL_CREATED",
+                "A new bill of ₹" +
+                        saved.getTotalAmount() +
+                        " has been generated for your appointment with Dr. " +
+                        saved.getAppointment()
+                                .getDoctor().getUser().getName(),
+                "/bills"
+        );
+
+        log.info("Bill generated + email sent + notification sent!");
         return toDTO(saved);
     }
 
-    // PUT - mark as paid
+    // PUT - mark as paid (manual/receptionist)
+    // PUT - mark as paid (manual/receptionist)
     public BillResponseDTO payBill(Long id,
                                    BillPaymentDTO dto) {
         log.info("Processing payment for bill: {}", id);
@@ -143,17 +159,32 @@ public class BillService {
                         new RuntimeException(
                                 "Bill not found: " + id));
 
+        // ✅ If already paid, just return the bill — no error
         if (bill.getStatus() == BillStatus.PAID) {
-            throw new RuntimeException(
-                    "Bill already paid!");
+            log.info("Bill {} is already paid — returning existing record", id);
+            return toDTO(bill);
         }
 
         bill.setStatus(BillStatus.PAID);
         bill.setPaymentMethod(dto.getPaymentMethod());
 
-        log.info("Payment successful via {}",
+        Bill saved = billRepository.save(bill);
+        emailService.sendPaymentReceivedEmail(saved);
+        // Notify patient — payment received
+        notificationService.notify(
+                saved.getAppointment()
+                        .getPatient().getUser(),
+                "PAYMENT_RECEIVED",
+                "Payment of ₹" +
+                        saved.getTotalAmount() +
+                        " received successfully via " +
+                        saved.getPaymentMethod(),
+                "/bills"
+        );
+
+        log.info("Payment successful via {}, notification sent!",
                 dto.getPaymentMethod());
-        return toDTO(billRepository.save(bill));
+        return toDTO(saved);
     }
 
     // GET total revenue
@@ -162,7 +193,7 @@ public class BillService {
         return revenue != null ? revenue : 0.0;
     }
 
-    // GET all appointments
+    // GET all bills
     public Page<BillResponseDTO> getAllBills(
             int page, int size) {
         Pageable pageable = PageRequest.of(page, size,

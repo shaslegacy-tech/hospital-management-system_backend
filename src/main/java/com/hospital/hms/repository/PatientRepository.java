@@ -12,5 +12,7 @@ public interface PatientRepository
         extends JpaRepository<Patient, Long>,
         JpaSpecificationExecutor<Patient> {
 
+    boolean existsByUserId(Long userId);
+
     Optional<Patient> findByUserId(Long userId);
 }

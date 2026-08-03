@@ -25,7 +25,8 @@ public class PrescriptionController {
     public ResponseEntity<List<PrescriptionResponseDTO>>
     getByRecord(@PathVariable Long recordId) {
         return ResponseEntity.ok(
-                prescriptionService.getByMedicalRecord(recordId));
+                prescriptionService
+                        .getByMedicalRecord(recordId));
     }
 
     @PostMapping

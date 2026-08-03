@@ -83,14 +83,17 @@ public class DoctorController {
     }
 
     // GET /api/doctors/department/{departmentId}
-    @GetMapping("/department/{departmentId}")
-    public ResponseEntity<List<DoctorResponseDTO>>
-    getDoctorsByDepartment(
-            @PathVariable Long departmentId) {
-        return ResponseEntity.ok(
-                doctorService.getDoctorsByDepartment(
-                        departmentId));
-    }
+    // ✅ Added optional ?available=true/false param
+        @GetMapping("/department/{departmentId}")
+        public ResponseEntity<List<DoctorResponseDTO>>
+        getDoctorsByDepartment(
+                @PathVariable Long departmentId,
+                @RequestParam(required = false) Boolean available) {
+            return ResponseEntity.ok(
+                    doctorService.getDoctorsByDepartment(
+                            departmentId, available));
+        }
+
 
     // GET /api/doctors/user/{userId}
     @GetMapping("/user/{userId}")

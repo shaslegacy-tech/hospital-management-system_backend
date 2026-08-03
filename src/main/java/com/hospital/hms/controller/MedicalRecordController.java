@@ -65,4 +65,15 @@ public class MedicalRecordController {
         return ResponseEntity.ok(
                 medicalRecordService.updateRecord(id, dto));
     }
+
+    // ── Add this method to existing MedicalRecordController ──
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")        // ✅ Admin only
+    public ResponseEntity<List<MedicalRecordResponseDTO>>
+    getAllRecords() {
+        return ResponseEntity.ok(
+                medicalRecordService.getAllRecords());
+    }
+
 }

@@ -5,11 +5,16 @@
 
 package com.hospital.hms.controller;
 
+import com.hospital.hms.dto.request.ApprovePatientRequestDTO;
+import com.hospital.hms.dto.response.PendingUserResponseDTO;
+import com.hospital.hms.dto.response.UserSearchResponseDTO;
+import com.hospital.hms.service.UserService;
 import com.hospital.hms.model.User;
 import com.hospital.hms.model.enums.Role;
 import com.hospital.hms.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,10 +22,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Tag(name = "Users", description = "Admin-only user lookups")
+@Tag(name = "Users", description = "User search and patient approval, Admin-only user lookups")
 @Slf4j
 @RestController
 @RequestMapping("/api/users")
@@ -28,6 +34,9 @@ public class UserController {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private UserService userService;
 
     @Data
     public static class UserSummaryDTO {
@@ -42,6 +51,75 @@ public class UserController {
             this.email = email;
             this.role = role;
         }
+    }
+
+    @Operation(
+            summary = "Search user by email or phone",
+            description = "Used by receptionist to check if " +
+                    "a patient already has an account " +
+                    "before creating a new one."
+    )
+    @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST')")
+    public ResponseEntity<UserSearchResponseDTO> searchUser(
+            @RequestParam String query) {
+        return ResponseEntity.ok(
+                userService.searchByEmailOrPhone(query));
+    }
+
+    @Operation(
+            summary = "Get all pending patients",
+            description = "Returns all self-registered patients " +
+                    "waiting for receptionist approval."
+    )
+    @GetMapping("/pending-patients")
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST')")
+    public ResponseEntity<List<PendingUserResponseDTO>>
+    getPendingPatients() {
+        return ResponseEntity.ok(
+                userService.getPendingPatients());
+    }
+
+    @Operation(
+            summary = "Get pending patient count",
+            description = "Returns count of pending patients " +
+                    "for sidebar badge display."
+    )
+    @GetMapping("/pending-patients/count")
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST')")
+    public ResponseEntity<Map<String, Long>>
+    getPendingCount() {
+        return ResponseEntity.ok(
+                Map.of("count",
+                        userService.getPendingCount()));
+    }
+
+    @Operation(
+            summary = "Approve a pending patient",
+            description = "Completes the patient medical profile " +
+                    "and activates their account."
+    )
+    @PostMapping("/{userId}/approve")
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST')")
+    public ResponseEntity<String> approvePatient(
+            @PathVariable Long userId,
+            @Valid @RequestBody
+            ApprovePatientRequestDTO dto) {
+        return ResponseEntity.ok(
+                userService.approvePatient(userId, dto));
+    }
+
+    @Operation(
+            summary = "Reject a pending patient",
+            description = "Rejects a self-registered patient " +
+                    "and deactivates their account."
+    )
+    @PostMapping("/{userId}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST')")
+    public ResponseEntity<String> rejectPatient(
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(
+                userService.rejectPatient(userId));
     }
 
     @Operation(

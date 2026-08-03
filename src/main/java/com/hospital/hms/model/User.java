@@ -1,6 +1,7 @@
 package com.hospital.hms.model;
 
 import com.hospital.hms.model.enums.Role;
+import com.hospital.hms.model.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,5 +28,11 @@ public class User extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private Role role;
 
+    // ✅ Active flag — for deactivation
     private boolean active = true;
+
+    // ✅ Status — for approval workflow
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserStatus status = UserStatus.ACTIVE;
 }

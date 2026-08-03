@@ -40,5 +40,9 @@ spring:
 file:
   upload-dir: ${FILE_UPLOAD_DIR:./uploads}
 
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID}
+  key-secret: ${RAZORPAY_KEY_SECRET}
+
 server:
   port: ${SERVER_PORT:8080}

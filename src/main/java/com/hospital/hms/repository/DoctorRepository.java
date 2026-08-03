@@ -17,4 +17,8 @@ public interface DoctorRepository
     Optional<Doctor> findByUserId(Long userId);
     List<Doctor> findBySpecializationContainingIgnoreCase(
             String specialization);
+    // ✅ Add this method if not already present
+    List<Doctor> findByDepartmentIdAndAvailable(
+            Long departmentId, boolean available);
+
 }

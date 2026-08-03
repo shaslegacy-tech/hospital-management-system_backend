@@ -33,6 +33,9 @@ public class AppointmentService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private NotificationService notificationService;
+
     private AppointmentResponseDTO toDTO(
             Appointment appointment) {
         return new AppointmentResponseDTO(
@@ -172,7 +175,22 @@ public class AppointmentService {
         // Send email notification
         emailService.sendAppointmentBookedEmail(saved);
 
-        log.info("Appointment booked + email sent!");
+        // Send app notification to doctor
+        notificationService.notify(
+                saved.getDoctor().getUser(),
+                "APPOINTMENT_BOOKED",
+                "New appointment booked by " +
+                        saved.getPatient().getUser().getName(),
+                "/doctor/schedule"
+        );
+
+        notificationService.notify(
+                saved.getPatient().getUser(),
+                "APPOINTMENT_BOOKED",
+                "Your appointment with Dr. " + saved.getDoctor().getUser().getName() + "...",
+                "/appointments"
+        );
+        log.info("Appointment booked + email sent + notification created!");
         return toDTO(saved);
     }
 
@@ -200,9 +218,27 @@ public class AppointmentService {
         // Send email based on new status
         if (dto.getStatus() == AppointmentStatus.CONFIRMED) {
             emailService.sendAppointmentConfirmedEmail(saved);
+
+            notificationService.notify(
+                    saved.getPatient().getUser(),
+                    "APPOINTMENT_CONFIRMED",
+                    "Your appointment with Dr. " +
+                            saved.getDoctor().getUser().getName() +
+                            " was confirmed",
+                    "/appointments"
+            );
         } else if (dto.getStatus() ==
                 AppointmentStatus.CANCELLED) {
             emailService.sendAppointmentCancelledEmail(saved);
+
+            notificationService.notify(
+                    saved.getPatient().getUser(),
+                    "APPOINTMENT_CANCELLED",
+                    "Your appointment on " +
+                            saved.getAppointmentDate() +
+                            " was cancelled",
+                    "/appointments"
+            );
         }
 
         return toDTO(saved);
@@ -231,6 +267,16 @@ public class AppointmentService {
 
         // Send cancellation email
         emailService.sendAppointmentCancelledEmail(saved);
+
+        // Send app notification to patient
+        notificationService.notify(
+                saved.getPatient().getUser(),
+                "APPOINTMENT_CANCELLED",
+                "Your appointment on " +
+                        saved.getAppointmentDate() +
+                        " was cancelled",
+                "/appointments"
+        );
 
         return toDTO(saved);
     }

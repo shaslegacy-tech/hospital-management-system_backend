@@ -3,6 +3,8 @@ package com.hospital.hms.service;
 import com.hospital.hms.dto.request.*;
 import com.hospital.hms.dto.response.AuthResponseDTO;
 import com.hospital.hms.model.User;
+import com.hospital.hms.model.enums.Role;
+import com.hospital.hms.model.enums.UserStatus;
 import com.hospital.hms.repository.UserRepository;
 import com.hospital.hms.security.JwtService;
 import lombok.extern.slf4j.Slf4j;
@@ -58,8 +60,18 @@ public class AuthService implements UserDetailsService {
         user.setRole(dto.getRole());
         user.setActive(true);
 
+        // ✅ Self-registered PATIENTS start as PENDING
+        // All other roles (ADMIN, DOCTOR, RECEPTIONIST)
+        // are created directly as ACTIVE
+        if (dto.getRole() == Role.PATIENT) {
+            user.setStatus(UserStatus.PENDING);
+        } else {
+            user.setStatus(UserStatus.ACTIVE);
+        }
+
         userRepository.save(user);
-        log.info("User registered: {}", user.getEmail());
+        log.info("User registered: {} with status: {}",
+                user.getEmail(), user.getStatus());
 
         String token = jwtService.generateToken(
                 user.getEmail(), user.getRole().name());
@@ -86,6 +98,20 @@ public class AuthService implements UserDetailsService {
                     "Account is deactivated!");
         }
 
+        // ✅ Block PENDING patients from logging in
+        if (user.getStatus() == UserStatus.PENDING) {
+            throw new RuntimeException(
+                    "Your account is pending approval. " +
+                            "Please wait for receptionist approval.");
+        }
+
+        // ✅ Block REJECTED patients from logging in
+        if (user.getStatus() == UserStatus.REJECTED) {
+            throw new RuntimeException(
+                    "Your account has been rejected. " +
+                            "Please contact the hospital.");
+        }
+
         if (!passwordEncoder.matches(
                 dto.getPassword(), user.getPassword())) {
             throw new RuntimeException("Invalid password!");
@@ -106,7 +132,7 @@ public class AuthService implements UserDetailsService {
         );
     }
 
-     public String changePassword(String email,
+    public String changePassword(String email,
                                  ChangePasswordRequestDTO dto) {
         log.info("Password change requested by: {}", email);
 
@@ -131,9 +157,7 @@ public class AuthService implements UserDetailsService {
                 passwordEncoder.encode(dto.getNewPassword()));
         userRepository.save(user);
 
-        log.info("Password changed successfully for user: {}",
-                user.getId());
-
+        log.info("Password changed for: {}", user.getId());
         return "Password updated successfully";
     }
 }

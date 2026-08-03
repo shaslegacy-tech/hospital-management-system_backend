@@ -1,7 +1,6 @@
 package com.hospital.hms.controller;
 
 import com.hospital.hms.dto.request.*;
-import com.hospital.hms.dto.response.AppointmentResponseDTO;
 import com.hospital.hms.dto.response.BillResponseDTO;
 import com.hospital.hms.service.BillService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -67,13 +66,13 @@ public class BillController {
                 billService.payBill(id, dto));
     }
 
+    // GET all bills — ADMIN, RECEPTIONIST
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','RECEPTIONIST')")
     public ResponseEntity<Page<BillResponseDTO>> getAllBills(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ResponseEntity.ok(
-                billService.getAllBills(
-                        page, size));
+                billService.getAllBills(page, size));
     }
 }

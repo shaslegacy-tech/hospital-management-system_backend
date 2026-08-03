@@ -2,6 +2,7 @@ package com.hospital.hms.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalTime;
 
 @Entity
 @Table(name = "doctors")
@@ -32,4 +33,13 @@ public class Doctor extends BaseEntity {
     private String bio;
 
     private boolean available = true;
+
+    @Column(name = "work_start_time")
+    private LocalTime workStartTime = LocalTime.of(9, 0);
+
+    @Column(name = "work_end_time")
+    private LocalTime workEndTime = LocalTime.of(17, 0);
+
+    @Column(name = "slot_duration_minutes")
+    private Integer slotDurationMinutes = 30;
 }

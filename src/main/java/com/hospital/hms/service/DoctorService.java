@@ -89,14 +89,26 @@ public class DoctorService {
         return toDTO(doctor);
     }
 
-    // GET doctors by department
+    // GET doctors by department with optional available filter
     public List<DoctorResponseDTO> getDoctorsByDepartment(
-            Long departmentId) {
-        log.info("Fetching doctors for department: {}",
-                departmentId);
-        return doctorRepository
-                .findByDepartmentId(departmentId)
-                .stream()
+            Long departmentId, Boolean available) {
+        log.info("Fetching doctors for department: {} available: {}",
+                departmentId, available);
+
+        List<Doctor> doctors;
+
+        if (available != null && available) {
+            // ✅ Filter by department AND available = true
+            doctors = doctorRepository
+                    .findByDepartmentIdAndAvailable(
+                            departmentId, true);
+        } else {
+            // ✅ Return ALL doctors in department
+            doctors = doctorRepository
+                    .findByDepartmentId(departmentId);
+        }
+
+        return doctors.stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }

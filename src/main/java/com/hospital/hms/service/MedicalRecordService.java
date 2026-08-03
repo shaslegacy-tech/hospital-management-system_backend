@@ -5,6 +5,7 @@ import com.hospital.hms.dto.response.*;
 import com.hospital.hms.model.*;
 import com.hospital.hms.model.enums.AppointmentStatus;
 import com.hospital.hms.repository.*;
+import com.hospital.hms.service.email.EmailService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,12 @@ public class MedicalRecordService {
 
     @Autowired
     private PrescriptionRepository prescriptionRepository;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private EmailService emailService;
 
     private PrescriptionResponseDTO toPrescriptionDTO(
             Prescription p) {
@@ -107,11 +114,18 @@ public class MedicalRecordService {
                                 new RuntimeException(
                                         "Appointment not found!"));
 
-        // Check appointment is CONFIRMED
-        if (appointment.getStatus() !=
-                AppointmentStatus.CONFIRMED) {
+        // ✅ Block only CANCELLED appointments
+        if (appointment.getStatus() ==
+                AppointmentStatus.CANCELLED) {
             throw new RuntimeException(
-                    "Appointment must be CONFIRMED first!");
+                    "Cannot add record to a cancelled appointment!");
+        }
+
+        // ✅ Block only PENDING appointments
+        if (appointment.getStatus() ==
+                AppointmentStatus.PENDING) {
+            throw new RuntimeException(
+                    "Appointment must be CONFIRMED or COMPLETED first!");
         }
 
         // Check record doesn't already exist
@@ -119,7 +133,8 @@ public class MedicalRecordService {
                 .findByAppointmentId(
                         dto.getAppointmentId()).isPresent()) {
             throw new RuntimeException(
-                    "Medical record already exists!");
+                    "Medical record already exists " +
+                            "for this appointment!");
         }
 
         MedicalRecord record = new MedicalRecord();
@@ -128,17 +143,51 @@ public class MedicalRecordService {
         record.setTreatment(dto.getTreatment());
         record.setNotes(dto.getNotes());
 
-        // Auto-complete the appointment
-        appointment.setStatus(AppointmentStatus.COMPLETED);
-        appointmentRepository.save(appointment);
+        // Auto-complete the appointment if not already
+        if (appointment.getStatus() !=
+                AppointmentStatus.COMPLETED) {
+            appointment.setStatus(AppointmentStatus.COMPLETED);
+            appointmentRepository.save(appointment);
+        }
 
-        log.info("Medical record created, appointment COMPLETED");
-        return toDTO(medicalRecordRepository.save(record));
+        MedicalRecord saved =
+                medicalRecordRepository.save(record);
+
+        emailService.sendMedicalRecordAddedEmail(saved);
+
+        // Notify patient — diagnosis added
+        notificationService.notify(
+                saved.getAppointment()
+                        .getPatient().getUser(),
+                "RECORD_ADDED",
+                "Dr. " +
+                        saved.getAppointment()
+                                .getDoctor().getUser().getName() +
+                        " added a diagnosis for your visit",
+                "/records"
+        );
+
+        // Notify patient — appointment completed
+        notificationService.notify(
+                saved.getAppointment()
+                        .getPatient().getUser(),
+                "APPOINTMENT_COMPLETED",
+                "Your appointment with Dr. " +
+                        saved.getAppointment()
+                                .getDoctor().getUser().getName() +
+                        " has been marked as completed",
+                "/appointments"
+        );
+
+        log.info("Medical record created, appointment " +
+                "COMPLETED, notifications sent!");
+        return toDTO(saved);
     }
 
     // PUT - update record
-    public MedicalRecordResponseDTO updateRecord(Long id,
-                                                 MedicalRecordRequestDTO dto) {
+    public MedicalRecordResponseDTO updateRecord(
+            Long id,
+            MedicalRecordRequestDTO dto) {
         MedicalRecord record =
                 medicalRecordRepository.findById(id)
                         .orElseThrow(() ->
@@ -149,6 +198,30 @@ public class MedicalRecordService {
         record.setTreatment(dto.getTreatment());
         record.setNotes(dto.getNotes());
 
-        return toDTO(medicalRecordRepository.save(record));
+        MedicalRecord saved =
+                medicalRecordRepository.save(record);
+//        emailService.sendMedicalRecordAddedEmail(saved);
+        // Notify patient — record updated
+        notificationService.notify(
+                saved.getAppointment().getPatient().getUser(),
+                "RECORD_ADDED",
+                "Dr. " +
+                        saved.getAppointment()
+                                .getDoctor().getUser().getName() +
+                        " updated your medical record",
+                "/records"
+        );
+
+        return toDTO(saved);
     }
+
+    // GET all medical records — ADMIN only
+    public List<MedicalRecordResponseDTO> getAllRecords() {
+        log.info("Fetching all medical records");
+        return medicalRecordRepository.findAll()
+                .stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
 }

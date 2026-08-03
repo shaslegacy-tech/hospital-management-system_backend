@@ -100,8 +100,7 @@ public class AppointmentController {
     )
     // POST - book appointment
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','PATIENT'," +
-            "'RECEPTIONIST')")
+    @PreAuthorize("hasAnyRole('ADMIN','PATIENT','RECEPTIONIST')")
     public ResponseEntity<AppointmentResponseDTO>
     bookAppointment(
             @Valid @RequestBody
