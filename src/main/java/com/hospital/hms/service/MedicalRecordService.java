@@ -64,7 +64,8 @@ public class MedicalRecordService {
                 record.getTreatment(),
                 record.getNotes(),
                 prescriptions,
-                record.getCreatedAt()
+                record.getCreatedAt(),
+                record.getPatientSummary()
         );
     }
 

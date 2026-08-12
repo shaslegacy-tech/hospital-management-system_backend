@@ -17,4 +17,5 @@ public class MedicalRecordResponseDTO {
     private String notes;
     private List<PrescriptionResponseDTO> prescriptions;
     private LocalDateTime createdAt;
+    private String patientSummary;
 }

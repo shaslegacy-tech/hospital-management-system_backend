@@ -12,7 +12,19 @@ import org.springframework.scheduling.annotation.EnableAsync;
 public class HmsApplication {
 	public static void main(String[] args) {
 		loadDotEnv();
+		setDefaultProfile();
 		SpringApplication.run(HmsApplication.class, args);
+	}
+
+	private static void setDefaultProfile() {
+		String activeProfiles = System.getProperty("spring.profiles.active");
+		if (activeProfiles == null || activeProfiles.isBlank()) {
+			activeProfiles = System.getenv("SPRING_PROFILES_ACTIVE");
+		}
+		if (activeProfiles == null || activeProfiles.isBlank()) {
+			System.setProperty("spring.profiles.active", "local");
+			System.out.println("✅ No active Spring profile found, defaulting to 'local'");
+		}
 	}
 
 	private static void loadDotEnv() {

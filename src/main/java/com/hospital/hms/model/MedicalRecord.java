@@ -26,4 +26,7 @@ public class MedicalRecord extends BaseEntity {
 
     @Column(length = 1000)
     private String notes;
+
+    @Column(columnDefinition = "TEXT")
+    private String patientSummary;
 }
