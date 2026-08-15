@@ -41,10 +41,17 @@ public class DoctorService {
     private AppointmentRepository appointmentRepository;
 
     @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
     private DoctorResponseDTO toDTO(Doctor doctor) {
+        Double avgRating = reviewRepository.findAverageRatingByDoctorId(doctor.getId());
+        long reviewCount = reviewRepository.countByDoctorId(doctor.getId());
+        Double roundedRating = avgRating != null ? Math.round(avgRating * 10.0) / 10.0 : null;
+
         return new DoctorResponseDTO(
                 doctor.getId(),
                 doctor.getUser().getId(),
@@ -67,7 +74,9 @@ public class DoctorService {
                         : "17:00",
                 doctor.getSlotDurationMinutes() != null
                         ? doctor.getSlotDurationMinutes()
-                        : 30
+                        : 30,
+                roundedRating,
+                (int) reviewCount
         );
     }
 

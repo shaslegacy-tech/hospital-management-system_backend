@@ -22,4 +22,6 @@ public class DoctorResponseDTO {
     private String workStartTime;
     private String workEndTime;
     private Integer slotDurationMinutes;
+    private Double averageRating;
+    private Integer reviewCount;
 }
