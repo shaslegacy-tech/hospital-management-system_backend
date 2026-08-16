@@ -170,7 +170,7 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
-                "https://hms-frontend-kohl.vercel.app"
+                "https://aarogyaai-ojasya.vercel.app"
         ));
         configuration.setAllowedMethods(List.of(
                 "GET", "POST", "PUT",

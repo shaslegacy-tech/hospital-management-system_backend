@@ -24,7 +24,7 @@ public class CorsConfig {
                                 "http://127.0.0.1:3000",
                                 "http://127.0.0.1:3001",
                                 // Add your Vercel deployment URL once deployed:
-                                 "https://hms-frontend-kohl.vercel.app"
+                                 "https://aarogyaai-ojasya.vercel.app"
                         )
                         // Allow all HTTP methods
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
