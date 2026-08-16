@@ -32,6 +32,9 @@ public class MedicalRecordService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired 
+    private AuditLogService auditLogService;
+
     private PrescriptionResponseDTO toPrescriptionDTO(
             Prescription p) {
         return new PrescriptionResponseDTO(
@@ -153,6 +156,14 @@ public class MedicalRecordService {
 
         MedicalRecord saved =
                 medicalRecordRepository.save(record);
+
+        // MedicalRecordController — after createRecord():
+        auditLogService.log(
+                saved.getAppointment().getDoctor().getUser(),
+                "RECORD_CREATED",
+                "MedicalRecord",
+                saved.getId(),
+                "Medical record added for appointment #" + saved.getAppointment().getId());
 
         emailService.sendMedicalRecordAddedEmail(saved);
 

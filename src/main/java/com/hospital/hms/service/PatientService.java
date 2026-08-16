@@ -25,6 +25,9 @@ public class PatientService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired 
+    private AuditLogService auditLogService;
+
     private PatientResponseDTO toDTO(Patient patient) {
         return new PatientResponseDTO(
                 patient.getId(),
@@ -104,7 +107,16 @@ public class PatientService {
                 dto.getEmergencyContactName());
         patient.setMedicalHistory(dto.getMedicalHistory());
 
-        return toDTO(patientRepository.save(patient));
+        Patient saved = patientRepository.save(patient);
+
+        auditLogService.log(
+                user,
+                "PATIENT_REGISTERED",
+                "Patient",
+                saved.getId(),
+                "Patient profile created for " + user.getName());
+
+        return toDTO(saved);
     }
 
     // PUT - update patient

@@ -36,6 +36,9 @@ public class AppointmentService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired 
+    private AuditLogService auditLogService;
+
     private AppointmentResponseDTO toDTO(
             Appointment appointment) {
         return new AppointmentResponseDTO(
@@ -172,6 +175,12 @@ public class AppointmentService {
         Appointment saved =
                 appointmentRepository.save(appointment);
 
+          auditLogService.log(
+                saved.getPatient().getUser(), "APPOINTMENT_BOOKED", "Appointment",
+                saved.getId(),
+                saved.getPatient().getUser().getName() + " booked with Dr. " +
+                saved.getDoctor().getUser().getName() + " on " + saved.getAppointmentDate());
+
         // Send email notification
         emailService.sendAppointmentBookedEmail(saved);
 
@@ -214,6 +223,13 @@ public class AppointmentService {
 
         Appointment saved =
                 appointmentRepository.save(appointment);
+
+        auditLogService.log(
+                saved.getPatient().getUser(),
+                "APPOINTMENT_STATUS_CHANGED",
+                "Appointment",
+                saved.getId(),
+                "Status changed to " + saved.getStatus());
 
         // Send email based on new status
         if (dto.getStatus() == AppointmentStatus.CONFIRMED) {
@@ -264,6 +280,13 @@ public class AppointmentService {
         appointment.setStatus(AppointmentStatus.CANCELLED);
         Appointment saved =
                 appointmentRepository.save(appointment);
+
+        auditLogService.log(
+                saved.getPatient().getUser(),
+                "APPOINTMENT_CANCELLED",
+                "Appointment",
+                saved.getId(),
+                "Appointment Cancelled");   
 
         // Send cancellation email
         emailService.sendAppointmentCancelledEmail(saved);

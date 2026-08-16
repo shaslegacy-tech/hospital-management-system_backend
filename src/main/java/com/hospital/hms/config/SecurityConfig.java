@@ -71,6 +71,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/dashboard/**")
                         .hasRole("ADMIN")
 
+                        // ── Audit logs ────────────────────────────
+                        .requestMatchers("/api/audit-logs/**")
+                        .hasRole("ADMIN")
+
                         // ── Departments ───────────────────────────
                         .requestMatchers("/api/departments/**")
                         .hasAnyRole(

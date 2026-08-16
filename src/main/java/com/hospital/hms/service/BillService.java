@@ -33,6 +33,9 @@ public class BillService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired 
+    private AuditLogService auditLogService;
+
     private BillResponseDTO toDTO(Bill bill) {
         return new BillResponseDTO(
                 bill.getId(),
@@ -128,6 +131,13 @@ public class BillService {
 
         Bill saved = billRepository.save(bill);
 
+        auditLogService.log(
+                saved.getAppointment().getPatient().getUser(),
+                "BILL_CREATED", 
+                "Bill", bill.getId(),
+        "Bill of ₹" + bill.getTotalAmount() + " created for " + bill.getAppointment().getPatient().getUser().getName());
+
+
         // Send bill email
         emailService.sendBillGeneratedEmail(saved);
 
@@ -169,6 +179,13 @@ public class BillService {
         bill.setPaymentMethod(dto.getPaymentMethod());
 
         Bill saved = billRepository.save(bill);
+
+          auditLogService.log(
+                saved.getAppointment().getPatient().getUser(), 
+                "BILL_PAID", 
+                "Bill", bill.getId(),
+                "₹" + bill.getTotalAmount() + " paid via " + bill.getPaymentMethod());
+
         emailService.sendPaymentReceivedEmail(saved);
         // Notify patient — payment received
         notificationService.notify(

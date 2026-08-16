@@ -46,6 +46,9 @@ public class DoctorService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired 
+    private AuditLogService auditLogService;
+
     // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
     private DoctorResponseDTO toDTO(Doctor doctor) {
         Double avgRating = reviewRepository.findAverageRatingByDoctorId(doctor.getId());
@@ -238,7 +241,16 @@ public class DoctorService {
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Doctor not found: " + id));
+
+        User actor = doctor.getUser();
         doctorRepository.delete(doctor);
+
+        auditLogService.log(
+                actor,
+                "DOCTOR_DELETED",
+                "Doctor",
+                id,
+                "Doctor removed from system");
     }
 
     // Search Functionality
@@ -330,6 +342,13 @@ public class DoctorService {
                     dto.getSlotDurationMinutes());
 
         doctor = doctorRepository.save(doctor);
+
+        auditLogService.log(
+                user,
+                "DOCTOR_ONBOARDED",
+                "Doctor",
+                doctor.getId(),
+                "Dr. " + user.getName() + " onboarded to " + doctor.getDepartment().getName());
 
         log.info("Doctor onboarded: userId={}, doctorId={}",
                 user.getId(), doctor.getId());
