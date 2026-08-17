@@ -21,10 +21,11 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   mail:
+    enabled: ${MAIL_ENABLED:false}
     host: sandbox.smtp.mailtrap.io
     port: 2525
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -51,6 +52,13 @@ anthropic:
 groq:
   api-key: ${GROK_API_KEY}
   model: llama-3.3-70b-versatile
+
+twilio:
+  account-sid: ${TWILIO_ACCOUNT_SID:}
+  auth-token: ${TWILIO_AUTH_TOKEN:}
+  whatsapp-from: whatsapp:+14155238886   # Twilio's shared sandbox number
+  sms-from: +919935232465                # your Twilio trial phone number
+  enabled: ${TWILIO_ENABLED:false}        # set to true only when credentials are valid
 
 server:
   port: ${SERVER_PORT:8080}

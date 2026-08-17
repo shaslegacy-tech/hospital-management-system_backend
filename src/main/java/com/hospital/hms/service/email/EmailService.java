@@ -8,6 +8,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -20,6 +21,9 @@ public class EmailService {
     @Autowired
     private JavaMailSender mailSender;
 
+    @Value("${mail.enabled:false}")
+    private boolean enabled;
+
     private final String fromEmail =
             "noreply@aarogyaai.com";
 
@@ -29,6 +33,10 @@ public class EmailService {
             String toEmail,
             String subject,
             String htmlBody) {
+        if (!enabled) {
+            log.info("Email sending is disabled (mail.enabled=false). Skipping send to {}", toEmail);
+            return;
+        }
         try {
             MimeMessage message =
                     mailSender.createMimeMessage();
