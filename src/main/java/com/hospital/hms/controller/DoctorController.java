@@ -56,6 +56,7 @@ public class DoctorController {
             @RequestParam(required = false)
             Boolean available,
             @RequestParam(required = false) Double maxFee,
+            @RequestParam(required = false) String gender,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
@@ -63,7 +64,7 @@ public class DoctorController {
                 doctorService.searchDoctors(
                         name, specialization, departmentId,
                         minExperience, available,
-                        maxFee, page, size));
+                        maxFee, gender, page, size));
     }
 
     // GET /api/doctors/available

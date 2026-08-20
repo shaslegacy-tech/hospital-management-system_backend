@@ -24,4 +24,5 @@ public class DoctorResponseDTO {
     private Integer slotDurationMinutes;
     private Double averageRating;
     private Integer reviewCount;
+    private String gender;
 }

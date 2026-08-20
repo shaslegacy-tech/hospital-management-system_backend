@@ -79,7 +79,8 @@ public class DoctorService {
                         ? doctor.getSlotDurationMinutes()
                         : 30,
                 roundedRating,
-                (int) reviewCount
+                (int) reviewCount,
+                doctor.getGender()
         );
     }
 
@@ -167,6 +168,7 @@ public class DoctorService {
         doctor.setSpecialization(dto.getSpecialization());
         doctor.setExperienceYears(dto.getExperienceYears());
         doctor.setConsultationFee(dto.getConsultationFee());
+        doctor.setGender(dto.getGender());
         doctor.setBio(dto.getBio());
         doctor.setAvailable(true);
 
@@ -204,6 +206,7 @@ public class DoctorService {
         doctor.setSpecialization(dto.getSpecialization());
         doctor.setExperienceYears(dto.getExperienceYears());
         doctor.setConsultationFee(dto.getConsultationFee());
+        doctor.setGender(dto.getGender());
         doctor.setBio(dto.getBio());
 
         // ✅ NEW
@@ -261,6 +264,7 @@ public class DoctorService {
             Integer minExperience,
             Boolean available,
             Double maxFee,
+            String gender,
             int page, int size) {
 
         log.info("Searching doctors with filters");
@@ -275,6 +279,7 @@ public class DoctorService {
                         minExperience))
                 .and(DoctorSpecification.isAvailable(available))
                 .and(DoctorSpecification.maxFee(maxFee));
+                spec = spec.and(DoctorSpecification.hasGender(gender));
 
         Pageable pageable = PageRequest.of(page, size);
 
@@ -327,6 +332,7 @@ public class DoctorService {
         doctor.setSpecialization(dto.getSpecialization());
         doctor.setExperienceYears(dto.getExperienceYears());
         doctor.setConsultationFee(dto.getConsultationFee());
+        doctor.setGender(dto.getGender());
         doctor.setBio(dto.getBio());
         doctor.setAvailable(true);
 

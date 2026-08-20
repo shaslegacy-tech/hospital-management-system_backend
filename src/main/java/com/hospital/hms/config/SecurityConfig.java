@@ -136,6 +136,11 @@ public class SecurityConfig {
                                 "ADMIN", "DOCTOR",
                                 "PATIENT", "RECEPTIONIST")
 
+                        .requestMatchers("/api/caregivers/**")
+                        .hasAnyRole(
+                                "ADMIN", "DOCTOR",
+                                "PATIENT", "RECEPTIONIST")
+
                         // ── Fallback ──────────────────────────────
                         .anyRequest().authenticated()
                 )

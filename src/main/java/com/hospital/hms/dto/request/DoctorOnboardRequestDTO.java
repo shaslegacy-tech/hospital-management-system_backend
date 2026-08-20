@@ -29,6 +29,8 @@ public class DoctorOnboardRequestDTO {
     @NotNull
     private Double consultationFee;
 
+    private String gender;
+
     private String bio;
 
     private String workStartTime;   // "09:00"

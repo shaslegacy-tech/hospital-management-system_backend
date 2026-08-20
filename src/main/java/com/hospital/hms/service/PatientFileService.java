@@ -159,4 +159,16 @@ public class PatientFileService {
                         new RuntimeException(
                                 "File not found: " + id));
     }
+
+    public PatientFile getFileEntityByFileName(
+        String fileName) {
+
+    return patientFileRepository
+            .findByFileName(fileName)
+            .orElseThrow(() ->
+                    new RuntimeException(
+                            "File not found: " + fileName
+                    )
+            );
+}
 }
