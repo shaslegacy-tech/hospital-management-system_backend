@@ -50,8 +50,8 @@ anthropic:
   model: ${ANTHROPIC_API_MODEL}
 
 groq:
-  api-key: ${GROK_API_KEY}
-  model: llama-3.3-70b-versatile
+  api-key: ${GROQ_API_KEY}
+  model: qwen/qwen3.6-27b
 
 twilio:
   account-sid: ${TWILIO_ACCOUNT_SID:}

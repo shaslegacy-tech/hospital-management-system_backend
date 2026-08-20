@@ -108,7 +108,6 @@ public class PatientFileController {
                     + "'DOCTOR',"
                     + "'RECEPTIONIST',"
                     + "'PATIENT',"
-                    + "'CAREGIVER'"
                     + ")"
     )
     public ResponseEntity<List<PatientFileResponseDTO>>
@@ -122,8 +121,7 @@ public class PatientFileController {
         String role =
                 user.getRole().name();
 
-        if (role.equals("PATIENT")
-                || role.equals("CAREGIVER")) {
+        if (role.equals("PATIENT")) {
 
             Patient patient =
                     getPatient(patientId);
@@ -153,8 +151,7 @@ public class PatientFileController {
                     + "'ADMIN',"
                     + "'DOCTOR',"
                     + "'RECEPTIONIST',"
-                    + "'PATIENT',"
-                    + "'CAREGIVER'"
+                    + "'PATIENT'"
                     + ")"
     )
     public ResponseEntity<List<PatientFileResponseDTO>>
@@ -209,8 +206,7 @@ public class PatientFileController {
                     + "'ADMIN',"
                     + "'DOCTOR',"
                     + "'RECEPTIONIST',"
-                    + "'PATIENT',"
-                    + "'CAREGIVER'"
+                    + "'PATIENT'"
                     + ")"
     )
     public ResponseEntity<PatientFileResponseDTO>
@@ -261,8 +257,7 @@ public class PatientFileController {
                     + "'ADMIN',"
                     + "'DOCTOR',"
                     + "'RECEPTIONIST',"
-                    + "'PATIENT',"
-                    + "'CAREGIVER'"
+                    + "'PATIENT'"
                     + ")"
     )
     public ResponseEntity<Resource>
