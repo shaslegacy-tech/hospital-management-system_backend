@@ -116,7 +116,7 @@ public class MedicalRecordController {
 
     @GetMapping("/{id}")
     @PreAuthorize(
-            "hasAnyRole('PATIENT','CAREGIVER','DOCTOR','ADMIN')"
+            "hasAnyRole('PATIENT','DOCTOR','ADMIN')"
     )
     public ResponseEntity<MedicalRecordResponseDTO> getById(
             @PathVariable Long id,
@@ -155,7 +155,7 @@ public class MedicalRecordController {
 
     @GetMapping("/appointment/{appointmentId}")
     @PreAuthorize(
-            "hasAnyRole('PATIENT','CAREGIVER','DOCTOR','ADMIN')"
+            "hasAnyRole('PATIENT','DOCTOR','ADMIN')"
     )
     public ResponseEntity<MedicalRecordResponseDTO>
     getByAppointment(
@@ -199,7 +199,7 @@ public class MedicalRecordController {
 
     @GetMapping("/patient/{patientId}/history")
     @PreAuthorize(
-            "hasAnyRole('PATIENT','CAREGIVER')"
+            "hasAnyRole('PATIENT','DOCTOR','ADMIN')"
     )
     public ResponseEntity<List<MedicalRecordResponseDTO>>
     getPatientHistory(
@@ -293,7 +293,7 @@ public class MedicalRecordController {
     )
     @PostMapping("/{id}/explain")
     @PreAuthorize(
-            "hasAnyRole('PATIENT','CAREGIVER')"
+            "hasAnyRole('PATIENT','DOCTOR','ADMIN')"
     )
     public ResponseEntity<String> explainRecord(
             @PathVariable Long id,

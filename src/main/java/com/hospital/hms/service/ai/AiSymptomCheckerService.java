@@ -8,11 +8,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -32,95 +28,261 @@ public class AiSymptomCheckerService {
     @Value("${groq.model}")
     private String model;
 
-    // Groq's API is OpenAI-compatible — same request/response shape as
-    // OpenAI's chat completions endpoint, just a different base URL.
-    private static final String GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+    private static final String GROQ_URL =
+            "https://api.groq.com/openai/v1/chat/completions";
 
     public SymptomCheckResponseDTO checkSymptoms(String symptoms) {
-        List<Department> departments = departmentRepository.findAll();
+
+        List<Department> departments =
+                departmentRepository.findAll();
 
         String departmentList = departments.stream()
                 .map(d -> "- " + d.getName() + ": " + d.getDescription())
                 .collect(Collectors.joining("\n"));
 
         String systemPrompt = """
-            You are a triage assistant for a hospital booking app. A patient
-            will describe their symptoms in plain language. Your job is ONLY
-            to suggest which hospital department they should book with —
-            you must NEVER diagnose a condition, suggest medication, or give
-            treatment advice.
- 
-            You MUST pick departmentName EXACTLY from this list of real
-            departments this hospital has (do not invent one):
-            %s
- 
-            If the symptoms described could indicate a medical emergency
-            (e.g. chest pain, difficulty breathing, severe bleeding, signs
-            of stroke, loss of consciousness, severe allergic reaction),
-            set urgencyLevel to "HIGH" and the explanation must clearly tell
-            the person to seek emergency care immediately rather than book
-            a routine appointment.
- 
-            Respond with ONLY a JSON object, no other text, no markdown
-            fences, matching exactly this shape:
-            {
-              "departmentName": "<exact name from the list above>",
-              "explanation": "<1-2 short sentences, plain language, no jargon>",
-              "urgencyLevel": "LOW" | "MEDIUM" | "HIGH"
-            }
-            """.formatted(departmentList);
+                You are a triage assistant for a hospital booking app.
+
+                Your ONLY job is to suggest the hospital department
+                that the patient should book based on the symptoms.
+
+                NEVER diagnose a disease.
+                NEVER prescribe medicine.
+                NEVER provide treatment instructions.
+
+                Available hospital departments:
+
+                %s
+
+                You MUST select departmentName EXACTLY from the
+                department list above.
+
+                If the symptoms could indicate a medical emergency,
+                such as:
+                - chest pain
+                - severe difficulty breathing
+                - severe bleeding
+                - stroke symptoms
+                - loss of consciousness
+                - severe allergic reaction
+
+                then set urgencyLevel to HIGH.
+
+                For HIGH urgency, clearly tell the patient to seek
+                emergency medical care immediately instead of waiting
+                for a routine appointment.
+
+                Return ONLY valid JSON.
+
+                Required JSON structure:
+
+                {
+                  "departmentName": "exact department name",
+                  "explanation": "1-2 short plain-language sentences",
+                  "urgencyLevel": "LOW"
+                }
+
+                urgencyLevel must be exactly one of:
+                LOW, MEDIUM, HIGH.
+                """.formatted(departmentList);
 
         JSONObject body = new JSONObject();
-        body.put("model", model);
-        body.put("max_tokens", 300);
-        body.put("response_format", new JSONObject().put("type", "json_object"));
 
-        JSONArray messages = new JSONArray();
-        messages.put(new JSONObject().put("role", "system").put("content", systemPrompt));
-        messages.put(new JSONObject().put("role", "user").put("content", symptoms));
-        body.put("messages", messages);
+        body.put("model", model);
+
+        body.put("messages", new JSONArray()
+                .put(new JSONObject()
+                        .put("role", "system")
+                        .put("content", systemPrompt))
+                .put(new JSONObject()
+                        .put("role", "user")
+                        .put("content", symptoms))
+        );
+
+        // IMPORTANT
+        body.put(
+                "response_format",
+                new JSONObject()
+                        .put("type", "json_object")
+        );
+
+        // Qwen 3.6 supports disabling reasoning
+        body.put("reasoning_effort", "none");
+
+        body.put("temperature", 0.2);
+
+        body.put("max_completion_tokens", 500);
+
+        body.put("stream", false);
+
+        log.info("Calling Groq model: {}", model);
 
         HttpHeaders headers = new HttpHeaders();
+
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiKey);
 
-        HttpEntity<String> request = new HttpEntity<>(body.toString(), headers);
+        HttpEntity<String> request =
+                new HttpEntity<>(body.toString(), headers);
+
         RestTemplate restTemplate = new RestTemplate();
 
         try {
-            ResponseEntity<String> response = restTemplate.exchange(
-                    GROQ_URL, HttpMethod.POST, request, String.class);
 
-            JSONObject responseJson = new JSONObject(response.getBody());
-            String text = responseJson
-                    .getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-                    .getString("content");
+            ResponseEntity<String> response =
+                    restTemplate.exchange(
+                            GROQ_URL,
+                            HttpMethod.POST,
+                            request,
+                            String.class
+                    );
 
-            JSONObject parsed = new JSONObject(text.trim());
-            String departmentName = parsed.getString("departmentName");
-            String explanation = parsed.getString("explanation");
-            String urgencyLevel = parsed.getString("urgencyLevel");
+            log.info(
+                    "Groq HTTP status: {}",
+                    response.getStatusCode()
+            );
 
-            Department matched = departments.stream()
-                    .filter(d -> d.getName().equalsIgnoreCase(departmentName))
-                    .findFirst()
-                    .orElse(departments.isEmpty() ? null : departments.get(0));
+            log.debug(
+                    "Groq raw response: {}",
+                    response.getBody()
+            );
+
+            if (response.getBody() == null ||
+                    response.getBody().isBlank()) {
+
+                throw new RuntimeException(
+                        "Groq returned an empty response."
+                );
+            }
+
+            JSONObject responseJson =
+                    new JSONObject(response.getBody());
+
+            JSONArray choices =
+                    responseJson.getJSONArray("choices");
+
+            if (choices.isEmpty()) {
+                throw new RuntimeException(
+                        "Groq returned no choices."
+                );
+            }
+
+            JSONObject message =
+                    choices
+                            .getJSONObject(0)
+                            .getJSONObject("message");
+
+            String rawText =
+                    message.optString("content", "");
+
+            log.info(
+                    "Groq AI content: {}",
+                    rawText
+            );
+
+            if (rawText.isBlank()) {
+
+                throw new RuntimeException(
+                        "Groq returned empty message content."
+                );
+            }
+
+            JSONObject parsed =
+                    new JSONObject(rawText);
+
+            String departmentName =
+                    parsed.optString(
+                            "departmentName",
+                            ""
+                    );
+
+            String explanation =
+                    parsed.optString(
+                            "explanation",
+                            ""
+                    );
+
+            String urgencyLevel =
+                    parsed.optString(
+                            "urgencyLevel",
+                            "LOW"
+                    ).toUpperCase();
+
+            if (departmentName.isBlank()) {
+                throw new RuntimeException(
+                        "AI did not return departmentName."
+                );
+            }
+
+            if (explanation.isBlank()) {
+                explanation =
+                        "Based on the symptoms, this department "
+                        + "may be appropriate for further evaluation.";
+            }
+
+            if (!urgencyLevel.equals("LOW")
+                    && !urgencyLevel.equals("MEDIUM")
+                    && !urgencyLevel.equals("HIGH")) {
+
+                urgencyLevel = "LOW";
+            }
+
+            /*
+             * Match AI department with actual DB department.
+             */
+            Department matched =
+                    departments.stream()
+                            .filter(d ->
+                                    d.getName()
+                                            .equalsIgnoreCase(
+                                                    departmentName
+                                            )
+                            )
+                            .findFirst()
+                            .orElse(null);
+
+            /*
+             * Do NOT silently pick the first department.
+             * If AI returns an invalid department, fail safely.
+             */
+            if (matched == null) {
+
+                log.warn(
+                        "AI returned unknown department: {}",
+                        departmentName
+                );
+
+                throw new RuntimeException(
+                        "AI suggested an unavailable hospital department."
+                );
+            }
 
             return new SymptomCheckResponseDTO(
-                    matched != null ? matched.getId() : null,
-                    matched != null ? matched.getName() : departmentName,
+
+                    matched.getId(),
+
+                    matched.getName(),
+
                     explanation,
+
                     urgencyLevel,
-                    "This is general guidance, not a medical diagnosis. If this " +
-                            "is an emergency, call your local emergency number immediately."
+
+                    "This is general guidance, not a medical diagnosis. "
+                            + "If this is an emergency, call your local "
+                            + "emergency number immediately."
             );
 
         } catch (Exception e) {
-            log.error("AI symptom check failed: {}", e.getMessage());
+
+            log.error(
+                    "AI symptom check failed",
+                    e
+            );
+
             throw new RuntimeException(
-                    "Couldn't process your symptoms right now. Please try again or search doctors directly.");
+                    "Couldn't process your symptoms right now. "
+                            + "Please try again or search doctors directly."
+            );
         }
     }
 }

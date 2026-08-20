@@ -120,7 +120,6 @@ public class BillController {
     @PreAuthorize(
             "hasAnyRole("
                     + "'PATIENT',"
-                    + "'CAREGIVER',"
                     + "'ADMIN',"
                     + "'RECEPTIONIST'"
                     + ")"
@@ -173,7 +172,6 @@ public class BillController {
     @PreAuthorize(
             "hasAnyRole("
                     + "'PATIENT',"
-                    + "'CAREGIVER',"
                     + "'ADMIN',"
                     + "'RECEPTIONIST'"
                     + ")"
@@ -228,9 +226,9 @@ public class BillController {
     @GetMapping(
             "/patient/{patientId}"
     )
-    @PreAuthorize(
-            "hasAnyRole('PATIENT','CAREGIVER')"
-    )
+//     @PreAuthorize(
+//             "hasAnyRole('PATIENT','CAREGIVER')"
+//     )
     public ResponseEntity<List<BillResponseDTO>>
     getByPatient(
             @PathVariable Long patientId,

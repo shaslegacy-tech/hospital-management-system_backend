@@ -126,7 +126,7 @@ public class AppointmentController {
 
         @GetMapping("/{id}")
         @PreAuthorize(
-                "hasAnyRole('ADMIN','PATIENT','CAREGIVER','RECEPTIONIST','DOCTOR')"
+                "hasAnyRole('ADMIN','PATIENT','RECEPTIONIST','DOCTOR')"
         )
         public ResponseEntity<AppointmentResponseDTO> getAppointmentById(
                 @PathVariable Long id,
@@ -180,9 +180,6 @@ public class AppointmentController {
     // ============================================================
 
     @GetMapping("/patient/{patientId}")
-    @PreAuthorize(
-            "hasAnyRole('PATIENT','CAREGIVER')"
-    )
     public ResponseEntity<Page<AppointmentResponseDTO>>
     getByPatient(
             @PathVariable Long patientId,
@@ -270,7 +267,7 @@ public class AppointmentController {
     )
         @PostMapping
         @PreAuthorize(
-                "hasAnyRole('ADMIN','PATIENT','CAREGIVER','RECEPTIONIST')"
+                "hasAnyRole('ADMIN','PATIENT','RECEPTIONIST')"
         )
         public ResponseEntity<AppointmentResponseDTO> bookAppointment(
                 @Valid @RequestBody AppointmentRequestDTO dto,
@@ -281,7 +278,7 @@ public class AppointmentController {
         String role = user.getRole().name();
 
         // Patient/Caregiver must have access to the target patient
-        if (role.equals("PATIENT") || role.equals("CAREGIVER")) {
+        if (role.equals("PATIENT")) {
                 validatePatientAccess(
                         authentication,
                         dto.getPatientId()
@@ -324,7 +321,7 @@ public class AppointmentController {
 
         @PutMapping("/{id}/cancel")
         @PreAuthorize(
-                "hasAnyRole('ADMIN','PATIENT','CAREGIVER','RECEPTIONIST')"
+                "hasAnyRole('ADMIN','PATIENT','RECEPTIONIST')"
         )
         public ResponseEntity<AppointmentResponseDTO> cancelAppointment(
                 @PathVariable Long id,

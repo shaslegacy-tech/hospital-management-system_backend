@@ -134,15 +134,11 @@ public class CaregiverController {
                         )
                 );
 
-
-        // Make sure selected user is actually a caregiver
-        if (caregiverUser.getRole() != Role.CAREGIVER) {
-
-            throw new IllegalArgumentException(
-                    "The selected user is not registered as a caregiver."
-            );
-        }
-
+                if (caregiverUser.getRole() != Role.PATIENT) {
+                        throw new IllegalArgumentException(
+                                "The selected user must have a patient account."
+                        );
+                }
 
         // Patient cannot add himself/herself
         if (caregiverUser.getId()
@@ -206,7 +202,6 @@ public class CaregiverController {
         }
 
 
-        // Create new relationship
         CaregiverLink link = new CaregiverLink();
 
         link.setCaregiver(caregiverUser);
@@ -286,7 +281,7 @@ public class CaregiverController {
                     + "logged-in caregiver is authorized to access."
     )
     @GetMapping("/my-managed-patients")
-    @PreAuthorize("hasRole('CAREGIVER')")
+    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<List<CaregiverLinkResponseDTO>>
     getMyManagedPatients(
             Authentication authentication
@@ -322,7 +317,7 @@ public class CaregiverController {
     )
     @DeleteMapping("/{id}")
     @PreAuthorize(
-            "hasAnyRole('PATIENT','CAREGIVER')"
+            "hasAnyRole('PATIENT')"
     )
     public ResponseEntity<String> removeCaregiver(
             @PathVariable Long id,
