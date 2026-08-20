@@ -74,4 +74,11 @@ public class DoctorSpecification {
                     root.get("consultationFee"), fee);
         };
     }
+
+    public static Specification<Doctor> hasGender(String gender) {
+       return (root, query, cb) ->
+           gender == null || gender.isBlank()
+               ? cb.conjunction()
+               : cb.equal(root.get("gender"), gender);
+   }
 }

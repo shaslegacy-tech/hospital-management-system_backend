@@ -24,7 +24,7 @@ public class DoctorRequestDTO {
     @NotNull(message = "Consultation fee is required")
     @Min(value = 0, message = "Fee cannot be negative")
     private Double consultationFee;
-
+    private String gender;
     private String bio;
 
     private String workStartTime;   // "09:00"

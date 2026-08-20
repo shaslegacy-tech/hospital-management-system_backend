@@ -29,6 +29,8 @@ public class Doctor extends BaseEntity {
 
     private Double consultationFee;
 
+    private String gender;
+
     @Column(length = 1000)
     private String bio;
 
