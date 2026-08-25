@@ -277,7 +277,6 @@ public class AppointmentController {
 
         String role = user.getRole().name();
 
-        // Patient/Caregiver must have access to the target patient
         if (role.equals("PATIENT")) {
                 validatePatientAccess(
                         authentication,
@@ -354,10 +353,6 @@ public class AppointmentController {
         }
 
 
-    // ============================================================
-    // DELETE appointment
-    // ADMIN only
-    // ============================================================
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -373,10 +368,6 @@ public class AppointmentController {
     }
 
 
-    // ============================================================
-    // SEARCH appointments
-    // ADMIN, RECEPTIONIST
-    // ============================================================
 
     @Operation(
             summary = "Search appointments with filters",

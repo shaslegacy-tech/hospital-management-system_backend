@@ -4,11 +4,13 @@ import com.hospital.hms.dto.request.MedicalRecordRequestDTO;
 import com.hospital.hms.dto.response.MedicalRecordResponseDTO;
 
 import com.hospital.hms.model.Appointment;
+import com.hospital.hms.model.Doctor;
 import com.hospital.hms.model.MedicalRecord;
 import com.hospital.hms.model.Patient;
 import com.hospital.hms.model.User;
 
 import com.hospital.hms.repository.AppointmentRepository;
+import com.hospital.hms.repository.DoctorRepository;
 import com.hospital.hms.repository.MedicalRecordRepository;
 import com.hospital.hms.repository.PatientRepository;
 import com.hospital.hms.repository.UserRepository;
@@ -29,6 +31,8 @@ import org.springframework.http.ResponseEntity;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+
+import org.springframework.security.access.AccessDeniedException;
 
 import org.springframework.web.bind.annotation.*;
 
@@ -64,6 +68,9 @@ public class MedicalRecordController {
     @Autowired
     private CaregiverAccessService caregiverAccessService;
 
+    @Autowired
+    private DoctorRepository doctorRepository;
+
 
     // ============================================================
     // Helper methods
@@ -94,17 +101,69 @@ public class MedicalRecordController {
 
 
     private void validatePatientAccess(
-            Authentication authentication,
-            Patient patient) {
+        Authentication authentication,
+        Patient patient) {
 
-        User user = currentUser(authentication);
+    User user = currentUser(authentication);
 
-        caregiverAccessService.validateAccess(
-                user.getId(),
-                patient.getUser().getId(),
-                patient.getId()
-        );
+    String role = user.getRole().name();
+
+    // ADMIN can access all patient records
+    if ("ADMIN".equals(role)) {
+        return;
     }
+
+    // PATIENT can access only their own records
+    if ("PATIENT".equals(role)) {
+        if (!user.getId().equals(patient.getUser().getId())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You do not have access to this patient's data."
+            );
+        }
+        return;
+    }
+
+    // DOCTOR can access patients who have appointments with them
+    if ("DOCTOR".equals(role)) {
+
+        Doctor doctor = doctorRepository
+                .findByUserId(user.getId())
+                .orElseThrow(() ->
+                        new RuntimeException("Doctor profile not found!")
+                );
+
+        boolean hasAppointment =
+                appointmentRepository
+                        .existsByDoctorIdAndPatientId(
+                                doctor.getId(),
+                                patient.getId()
+                        );
+
+        if (!hasAppointment) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You do not have access to this patient's data."
+            );
+        }
+
+        return;
+    }
+
+//     // CAREGIVER access
+//     if ("CAREGIVER".equals(role)) {
+
+//         caregiverAccessService.validateAccess(
+//                 user.getId(),
+//                 patient.getUser().getId(),
+//                 patient.getId()
+//         );
+
+//         return;
+//     }
+
+    throw new org.springframework.security.access.AccessDeniedException(
+            "You do not have access to this patient's data."
+    );
+}
 
 
     // ============================================================
@@ -134,14 +193,11 @@ public class MedicalRecordController {
 
         String role = user.getRole().name();
 
-        if (role.equals("PATIENT")
-                || role.equals("CAREGIVER")) {
 
             validatePatientAccess(
                     authentication,
                     record.getAppointment().getPatient()
             );
-        }
 
         return ResponseEntity.ok(
                 medicalRecordService.getById(id)
@@ -174,16 +230,10 @@ public class MedicalRecordController {
         User user = currentUser(authentication);
 
         String role = user.getRole().name();
-
-        if (role.equals("PATIENT")
-                || role.equals("CAREGIVER")) {
-
             validatePatientAccess(
                     authentication,
                     appointment.getPatient()
             );
-        }
-
         return ResponseEntity.ok(
                 medicalRecordService
                         .getByAppointmentId(appointmentId)
@@ -191,11 +241,6 @@ public class MedicalRecordController {
     }
 
 
-    // ============================================================
-    // GET patient medical history
-    // PATIENT = own
-    // CAREGIVER = managed patient
-    // ============================================================
 
     @GetMapping("/patient/{patientId}/history")
     @PreAuthorize(
@@ -220,11 +265,6 @@ public class MedicalRecordController {
     }
 
 
-    // ============================================================
-    // CREATE record
-    // DOCTOR ONLY
-    // ============================================================
-
     @PostMapping
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<MedicalRecordResponseDTO>
@@ -238,10 +278,6 @@ public class MedicalRecordController {
     }
 
 
-    // ============================================================
-    // UPDATE record
-    // DOCTOR ONLY
-    // ============================================================
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('DOCTOR')")
@@ -260,11 +296,6 @@ public class MedicalRecordController {
     }
 
 
-    // ============================================================
-    // GET ALL records
-    // ADMIN ONLY
-    // ============================================================
-
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<MedicalRecordResponseDTO>>
@@ -275,12 +306,6 @@ public class MedicalRecordController {
         );
     }
 
-
-    // ============================================================
-    // AI explanation
-    // PATIENT = own
-    // CAREGIVER = managed patient
-    // ============================================================
 
     @Operation(
             summary = "Get a plain-language explanation "

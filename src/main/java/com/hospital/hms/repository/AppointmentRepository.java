@@ -47,4 +47,9 @@ public interface AppointmentRepository
 
     // Count today's appointments
     Long countByAppointmentDate(LocalDate date);
+
+    boolean existsByDoctorIdAndPatientId(
+        Long doctorId,
+        Long patientId
+);
 }
