@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.data.domain.*;
 
@@ -48,6 +49,9 @@ public class DoctorService {
 
     @Autowired 
     private AuditLogService auditLogService;
+
+        @Autowired
+        private HospitalContextService hospitalContextService;
 
     // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
     private DoctorResponseDTO toDTO(Doctor doctor) {
@@ -85,28 +89,37 @@ public class DoctorService {
     }
 
     // GET all doctors
-    public List<DoctorResponseDTO> getAllDoctors() {
+        public List<DoctorResponseDTO> getAllDoctors(Long hospitalId) {
         log.info("Fetching all doctors");
         return doctorRepository.findAll()
                 .stream()
+                                .filter(doctor -> doctor.getDepartment().getHospital().getId()
+                                                .equals(hospitalId))
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
     // GET doctor by ID
-    public DoctorResponseDTO getDoctorById(Long id) {
+    public DoctorResponseDTO getDoctorById(Long id, Long hospitalId) {
         Doctor doctor = doctorRepository.findById(id)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Doctor not found: " + id));
+        
+        // ✅ Validate doctor belongs to hospital
+        if (!doctor.getDepartment().getHospital().getId().equals(hospitalId)) {
+            throw new RuntimeException(
+                    "Doctor does not belong to your hospital");
+        }
+        
         return toDTO(doctor);
     }
 
     // GET doctors by department with optional available filter
     public List<DoctorResponseDTO> getDoctorsByDepartment(
-            Long departmentId, Boolean available) {
-        log.info("Fetching doctors for department: {} available: {}",
-                departmentId, available);
+            Long departmentId, Boolean available, Long hospitalId) {
+        log.info("Fetching doctors for department: {} available: {} hospital: {}",
+                departmentId, available, hospitalId);
 
         List<Doctor> doctors;
 
@@ -121,15 +134,20 @@ public class DoctorService {
                     .findByDepartmentId(departmentId);
         }
 
+        // ✅ Filter by hospital
         return doctors.stream()
+                .filter(doctor -> doctor.getDepartment().getHospital().getId()
+                        .equals(hospitalId))
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
     // GET available doctors
-    public List<DoctorResponseDTO> getAvailableDoctors() {
+    public List<DoctorResponseDTO> getAvailableDoctors(Long hospitalId) {
         return doctorRepository.findByAvailableTrue()
                 .stream()
+                .filter(doctor -> doctor.getDepartment().getHospital().getId()
+                        .equals(hospitalId))
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
@@ -188,19 +206,27 @@ public class DoctorService {
 
     // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
     public DoctorResponseDTO updateDoctor(Long id,
-                                          DoctorRequestDTO dto) {
+                                          DoctorRequestDTO dto,
+                                          Authentication authentication) {
         log.info("Updating doctor: {}", id);
 
         Doctor doctor = doctorRepository.findById(id)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Doctor not found: " + id));
+        Hospital hospital = hospitalContextService
+                .getCurrentUserHospital(authentication);
+        validateDoctorOwnership(doctor, hospital);
 
         Department department = departmentRepository
                 .findById(dto.getDepartmentId())
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Department not found!"));
+        if (!department.getHospital().getId().equals(hospital.getId())) {
+            throw new RuntimeException(
+                    "That department doesn't belong to your hospital!");
+        }
 
         doctor.setDepartment(department);
         doctor.setSpecialization(dto.getSpecialization());
@@ -238,12 +264,15 @@ public class DoctorService {
     }
 
     // DELETE - remove doctor profile
-    public void deleteDoctor(Long id) {
+        public void deleteDoctor(Long id, Authentication authentication) {
         log.warn("Deleting doctor: {}", id);
         Doctor doctor = doctorRepository.findById(id)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Doctor not found: " + id));
+        Hospital hospital = hospitalContextService
+                .getCurrentUserHospital(authentication);
+        validateDoctorOwnership(doctor, hospital);
 
         User actor = doctor.getUser();
         doctorRepository.delete(doctor);
@@ -256,6 +285,15 @@ public class DoctorService {
                 "Doctor removed from system");
     }
 
+        private void validateDoctorOwnership(
+                        Doctor doctor, Hospital hospital) {
+                if (!doctor.getDepartment().getHospital().getId()
+                                .equals(hospital.getId())) {
+                        throw new RuntimeException(
+                                        "That doctor doesn't belong to your hospital!");
+                }
+        }
+
     // Search Functionality
     public Page<DoctorResponseDTO> searchDoctors(
             String name,
@@ -265,6 +303,7 @@ public class DoctorService {
             Boolean available,
             Double maxFee,
             String gender,
+            Long hospitalId,
             int page, int size) {
 
         log.info("Searching doctors with filters");
@@ -279,7 +318,8 @@ public class DoctorService {
                         minExperience))
                 .and(DoctorSpecification.isAvailable(available))
                 .and(DoctorSpecification.maxFee(maxFee));
-                spec = spec.and(DoctorSpecification.hasGender(gender));
+        spec = spec.and(DoctorSpecification.hasGender(gender))
+                .and(DoctorSpecification.hasHospital(hospitalId));
 
         Pageable pageable = PageRequest.of(page, size);
 
@@ -288,20 +328,28 @@ public class DoctorService {
     }
 
     // GET doctor by User ID
-    public DoctorResponseDTO getDoctorByUserId(Long userId) {
-        log.info("Fetching doctor profile for user: {}", userId);
+    public DoctorResponseDTO getDoctorByUserId(Long userId, Long hospitalId) {
+        log.info("Fetching doctor profile for user: {} hospital: {}", userId, hospitalId);
         Doctor doctor = doctorRepository.findByUserId(userId)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Doctor profile not found for user: "
                                         + userId));
+        
+        // ✅ Validate doctor belongs to hospital
+        if (!doctor.getDepartment().getHospital().getId().equals(hospitalId)) {
+            throw new RuntimeException(
+                    "Doctor does not belong to your hospital");
+        }
+        
         return toDTO(doctor);
     }
 
     // ✅ UPDATED - added workStartTime, workEndTime, slotDurationMinutes
     @Transactional
     public DoctorResponseDTO onboardDoctor(
-            DoctorOnboardRequestDTO dto) {
+            DoctorOnboardRequestDTO dto,
+            Authentication authentication) {
         log.info("Onboarding new doctor: {}", dto.getEmail());
 
         if (userRepository.findByEmail(
@@ -310,12 +358,18 @@ public class DoctorService {
                     "A user with this email already exists!");
         }
 
+        Hospital hospital = hospitalContextService
+                .getCurrentUserHospital(authentication);
         Department department = departmentRepository
                 .findById(dto.getDepartmentId())
                 .orElseThrow(() ->
                         new RuntimeException(
-                                "Department not found: " +
-                                        dto.getDepartmentId()));
+                                "Department not found!"));
+
+        if (!department.getHospital().getId().equals(hospital.getId())) {
+            throw new RuntimeException(
+                    "That department doesn't belong to your hospital!");
+        }
 
         User user = new User();
         user.setName(dto.getName());
@@ -363,14 +417,20 @@ public class DoctorService {
 
     // ✅ NEW - available slots logic moved to service
     public List<String> getAvailableSlots(
-            Long doctorId, String date) {
+            Long doctorId, String date, Long hospitalId) {
         log.info("Fetching available slots for doctor {}" +
-                " on {}", doctorId, date);
+                " on {} hospital: {}", doctorId, date, hospitalId);
 
         Doctor doctor = doctorRepository.findById(doctorId)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Doctor not found!"));
+        
+        // ✅ Validate doctor belongs to hospital
+        if (!doctor.getDepartment().getHospital().getId().equals(hospitalId)) {
+            throw new RuntimeException(
+                    "Doctor does not belong to your hospital");
+        }
 
         LocalDate targetDate = LocalDate.parse(date);
 

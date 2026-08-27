@@ -42,6 +42,17 @@ public class DoctorSpecification {
         };
     }
 
+    public static Specification<Doctor> hasHospital(Long hospitalId) {
+        return (root, query, cb) -> {
+            if (hospitalId == null) {
+                return cb.conjunction();
+            }
+            return cb.equal(
+                    root.get("department").get("hospital").get("id"),
+                    hospitalId);
+        };
+    }
+
     public static Specification<Doctor> minExperience(
             Integer years) {
         return (root, query, cb) -> {

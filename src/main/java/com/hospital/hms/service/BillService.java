@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -36,6 +37,9 @@ public class BillService {
     @Autowired 
     private AuditLogService auditLogService;
 
+        @Autowired
+        private HospitalContextService hospitalContextService;
+
     private BillResponseDTO toDTO(Bill bill) {
         return new BillResponseDTO(
                 bill.getId(),
@@ -58,38 +62,75 @@ public class BillService {
 
     // GET bill by appointment
     public BillResponseDTO getBillByAppointment(
-            Long appointmentId) {
+            Long appointmentId,
+            Authentication authentication) {
         Bill bill = billRepository
                 .findByAppointmentId(appointmentId)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Bill not found for appointment: "
                                         + appointmentId));
+        
+        // ✅ Validate bill belongs to user's hospital (unless SUPER_ADMIN)
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            if (!bill.getAppointment().getDoctor().getDepartment().getHospital().getId()
+                    .equals(hospital.getId())) {
+                throw new RuntimeException(
+                        "Bill does not belong to your hospital");
+            }
+        }
+        
         return toDTO(bill);
     }
 
     // GET bill by ID
-    public BillResponseDTO getBillById(Long id) {
+    public BillResponseDTO getBillById(
+            Long id,
+            Authentication authentication) {
         Bill bill = billRepository.findById(id)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Bill not found: " + id));
+        
+        // ✅ Validate bill belongs to user's hospital (unless SUPER_ADMIN)
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            if (!bill.getAppointment().getDoctor().getDepartment().getHospital().getId()
+                    .equals(hospital.getId())) {
+                throw new RuntimeException(
+                        "Bill does not belong to your hospital");
+            }
+        }
+        
         return toDTO(bill);
     }
 
     // GET bills by patient
     public List<BillResponseDTO> getBillsByPatient(
-            Long patientId) {
-        return billRepository
-                .findByAppointmentPatientId(patientId)
-                .stream()
+            Long patientId,
+            Authentication authentication) {
+        List<Bill> bills = billRepository
+                .findByAppointmentPatientId(patientId);
+        
+        // ✅ Filter by hospital unless SUPER_ADMIN
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            bills = bills.stream()
+                    .filter(b -> b.getAppointment().getDoctor().getDepartment()
+                            .getHospital().getId().equals(hospital.getId()))
+                    .collect(Collectors.toList());
+        }
+        
+        return bills.stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
     // POST - generate bill
     public BillResponseDTO generateBill(
-            BillRequestDTO dto) {
+            BillRequestDTO dto,
+            Authentication authentication) {
         log.info("Generating bill for appointment: {}",
                 dto.getAppointmentId());
 
@@ -99,6 +140,16 @@ public class BillService {
                         .orElseThrow(() ->
                                 new RuntimeException(
                                         "Appointment not found!"));
+
+        // ✅ Validate appointment belongs to user's hospital (unless SUPER_ADMIN)
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            if (!appointment.getDoctor().getDepartment().getHospital().getId()
+                    .equals(hospital.getId())) {
+                throw new RuntimeException(
+                        "Appointment does not belong to your hospital");
+            }
+        }
 
         // Only bill COMPLETED appointments
         if (appointment.getStatus() !=
@@ -158,16 +209,27 @@ public class BillService {
         return toDTO(saved);
     }
 
-    // PUT - mark as paid (manual/receptionist)
-    // PUT - mark as paid (manual/receptionist)
-    public BillResponseDTO payBill(Long id,
-                                   BillPaymentDTO dto) {
+        // PUT - mark as paid (manual/receptionist)
+        public BillResponseDTO payBill(
+                        Long id,
+                        BillPaymentDTO dto,
+                        Authentication authentication) {
         log.info("Processing payment for bill: {}", id);
 
         Bill bill = billRepository.findById(id)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Bill not found: " + id));
+
+                // ✅ Validate bill belongs to user's hospital (unless SUPER_ADMIN)
+                if (!hospitalContextService.isSuperAdmin(authentication)) {
+                        Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+                        if (!bill.getAppointment().getDoctor().getDepartment().getHospital().getId()
+                                        .equals(hospital.getId())) {
+                                throw new RuntimeException(
+                                                "Bill does not belong to your hospital");
+                        }
+                }
 
         // ✅ If already paid, just return the bill — no error
         if (bill.getStatus() == BillStatus.PAID) {
@@ -212,10 +274,36 @@ public class BillService {
 
     // GET all bills
     public Page<BillResponseDTO> getAllBills(
+            Authentication authentication,
             int page, int size) {
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by("createdAt").descending());
-        return billRepository.findAll(pageable)
-                .map(this::toDTO);
+        
+        // ✅ Filter by hospital unless SUPER_ADMIN
+        if (hospitalContextService.isSuperAdmin(authentication)) {
+            return billRepository.findAll(pageable)
+                    .map(this::toDTO);
+        }
+        
+        Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+        // Filter bills: appointment → doctor → department → hospital
+        List<Bill> allBills = billRepository.findAll();
+        List<Bill> hospitalBills = allBills.stream()
+                .filter(b -> b.getAppointment().getDoctor().getDepartment()
+                        .getHospital().getId().equals(hospital.getId()))
+                .collect(Collectors.toList());
+        
+        // Return paginated hospital-scoped bills
+        int start = page * size;
+        int end = Math.min(start + size, hospitalBills.size());
+        List<Bill> pageContent = start >= hospitalBills.size() 
+                ? List.of() 
+                : hospitalBills.subList(start, end);
+        
+        return new org.springframework.data.domain.PageImpl<>(
+                pageContent.stream().map(this::toDTO).collect(Collectors.toList()),
+                pageable,
+                hospitalBills.size()
+        );
     }
 }

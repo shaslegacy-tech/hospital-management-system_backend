@@ -20,4 +20,8 @@ public class Department extends BaseEntity {
     private String description;
 
     private boolean active = true;
+
+    @ManyToOne
+    @JoinColumn(name = "hospital_id")
+    private Hospital hospital;
 }
