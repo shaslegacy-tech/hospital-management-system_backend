@@ -157,7 +157,7 @@ public class BillController {
 
 
         return ResponseEntity.ok(
-                billService.getBillById(id)
+                billService.getBillById(id, authentication)
         );
     }
 
@@ -210,7 +210,8 @@ public class BillController {
 
         return ResponseEntity.ok(
                 billService.getBillByAppointment(
-                        appointmentId
+                        appointmentId,
+                        authentication
                 )
         );
     }
@@ -246,7 +247,8 @@ public class BillController {
 
         return ResponseEntity.ok(
                 billService.getBillsByPatient(
-                        patientId
+                        patientId,
+                        authentication
                 )
         );
     }
@@ -263,11 +265,12 @@ public class BillController {
     )
     public ResponseEntity<BillResponseDTO>
     generateBill(
-            @Valid @RequestBody
-            BillRequestDTO dto) {
+                        @Valid @RequestBody
+                        BillRequestDTO dto,
+                        Authentication authentication) {
 
         return ResponseEntity.ok(
-                billService.generateBill(dto)
+                                billService.generateBill(dto, authentication)
         );
     }
 
@@ -285,12 +288,14 @@ public class BillController {
     payBill(
             @PathVariable Long id,
             @Valid @RequestBody
-            BillPaymentDTO dto) {
+            BillPaymentDTO dto,
+            Authentication authentication) {
 
         return ResponseEntity.ok(
                 billService.payBill(
                         id,
-                        dto
+                        dto,
+                        authentication
                 )
         );
     }
@@ -315,10 +320,12 @@ public class BillController {
             @RequestParam(
                     defaultValue = "20"
             )
-            int size) {
+            int size,
+            Authentication authentication) {
 
         return ResponseEntity.ok(
                 billService.getAllBills(
+                        authentication,
                         page,
                         size
                 )

@@ -109,10 +109,12 @@ public class AppointmentController {
     public ResponseEntity<Page<AppointmentResponseDTO>>
     getAllAppointments(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
 
         return ResponseEntity.ok(
                 appointmentService.getAllAppointments(
+                        authentication,
                         page,
                         size
                 )
@@ -152,7 +154,7 @@ public class AppointmentController {
         }
 
         return ResponseEntity.ok(
-                appointmentService.getAppointmentById(id)
+                appointmentService.getAppointmentById(id, authentication)
         );
         }
     // ============================================================
@@ -165,10 +167,11 @@ public class AppointmentController {
             "hasAnyRole('ADMIN','RECEPTIONIST')"
     )
     public ResponseEntity<List<AppointmentResponseDTO>>
-    getTodaysAppointments() {
+    getTodaysAppointments(
+            Authentication authentication) {
 
         return ResponseEntity.ok(
-                appointmentService.getTodaysAppointments()
+                appointmentService.getTodaysAppointments(authentication)
         );
     }
 
@@ -214,11 +217,13 @@ public class AppointmentController {
     getByDoctor(
             @PathVariable Long doctorId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
 
         return ResponseEntity.ok(
                 appointmentService.getAppointmentsByDoctor(
                         doctorId,
+                        authentication,
                         page,
                         size
                 )
@@ -241,12 +246,14 @@ public class AppointmentController {
             @DateTimeFormat(
                     iso = DateTimeFormat.ISO.DATE
             )
-            LocalDate date) {
+            LocalDate date,
+            Authentication authentication) {
 
         return ResponseEntity.ok(
                 appointmentService.getDoctorSchedule(
                         doctorId,
-                        date
+                        date,
+                        authentication
                 )
         );
     }
@@ -285,7 +292,7 @@ public class AppointmentController {
         }
 
         return ResponseEntity.ok(
-                appointmentService.bookAppointment(dto)
+                appointmentService.bookAppointment(dto, authentication)
         );
         }
 
@@ -409,7 +416,9 @@ public class AppointmentController {
             int page,
 
             @RequestParam(defaultValue = "10")
-            int size) {
+            int size,
+
+            Authentication authentication) {
 
         return ResponseEntity.ok(
                 appointmentService.searchAppointments(
@@ -419,6 +428,7 @@ public class AppointmentController {
                         departmentId,
                         dateFrom,
                         dateTo,
+                        authentication,
                         page,
                         size
                 )

@@ -7,10 +7,12 @@ import com.hospital.hms.model.enums.AppointmentStatus;
 import com.hospital.hms.repository.*;
 import com.hospital.hms.repository.spec.AppointmentSpecification;
 import com.hospital.hms.service.email.EmailService;
+import com.hospital.hms.model.Hospital;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -39,6 +41,9 @@ public class AppointmentService {
     @Autowired 
     private AuditLogService auditLogService;
 
+    @Autowired
+    private HospitalContextService hospitalContextService;
+
     private AppointmentResponseDTO toDTO(
             Appointment appointment) {
         return new AppointmentResponseDTO(
@@ -60,21 +65,45 @@ public class AppointmentService {
 
     // GET all appointments
     public Page<AppointmentResponseDTO> getAllAppointments(
+            Authentication authentication,
             int page, int size) {
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by("appointmentDate").descending());
-        return appointmentRepository.findAll(pageable)
+        
+        // ✅ Filter by hospital unless SUPER_ADMIN
+        if (hospitalContextService.isSuperAdmin(authentication)) {
+            return appointmentRepository.findAll(pageable)
+                    .map(this::toDTO);
+        }
+        
+        Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+        Specification<Appointment> spec = (root, query, cb) ->
+                cb.equal(root.get("doctor").get("department").get("hospital").get("id"),
+                        hospital.getId());
+        
+        return appointmentRepository.findAll(spec, pageable)
                 .map(this::toDTO);
     }
 
     // GET appointment by ID
     public AppointmentResponseDTO getAppointmentById(
-            Long id) {
+            Long id, Authentication authentication) {
         Appointment appointment =
                 appointmentRepository.findById(id)
                         .orElseThrow(() ->
                                 new RuntimeException(
                                         "Appointment not found: " + id));
+        
+        // ✅ Validate appointment belongs to user's hospital (unless SUPER_ADMIN)
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            if (!appointment.getDoctor().getDepartment().getHospital().getId()
+                    .equals(hospital.getId())) {
+                throw new RuntimeException(
+                        "Appointment does not belong to your hospital");
+            }
+        }
+        
         return toDTO(appointment);
     }
 
@@ -92,7 +121,22 @@ public class AppointmentService {
     // GET appointments by doctor
     public Page<AppointmentResponseDTO>
     getAppointmentsByDoctor(Long doctorId,
+                            Authentication authentication,
                             int page, int size) {
+        Doctor doctor = doctorRepository.findById(doctorId)
+                .orElseThrow(() ->
+                        new RuntimeException("Doctor not found!"));
+        
+        // ✅ Validate doctor belongs to hospital (unless SUPER_ADMIN)
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            if (!doctor.getDepartment().getHospital().getId()
+                    .equals(hospital.getId())) {
+                throw new RuntimeException(
+                        "Doctor does not belong to your hospital");
+            }
+        }
+        
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by("appointmentDate").descending());
         return appointmentRepository
@@ -102,11 +146,23 @@ public class AppointmentService {
 
     // GET today's appointments
     public List<AppointmentResponseDTO>
-    getTodaysAppointments() {
+    getTodaysAppointments(Authentication authentication) {
         log.info("Fetching today's appointments");
-        return appointmentRepository
-                .findByAppointmentDate(LocalDate.now())
-                .stream()
+        
+        List<Appointment> appointments = appointmentRepository
+                .findByAppointmentDate(LocalDate.now());
+        
+        // ✅ Filter by hospital unless SUPER_ADMIN
+        if (hospitalContextService.isSuperAdmin(authentication)) {
+            return appointments.stream()
+                    .map(this::toDTO)
+                    .collect(Collectors.toList());
+        }
+        
+        Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+        return appointments.stream()
+                .filter(a -> a.getDoctor().getDepartment().getHospital().getId()
+                        .equals(hospital.getId()))
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
@@ -114,7 +170,22 @@ public class AppointmentService {
     // GET doctor's schedule for a date
     public List<AppointmentResponseDTO>
     getDoctorSchedule(Long doctorId,
-                      LocalDate date) {
+                      LocalDate date,
+                      Authentication authentication) {
+        Doctor doctor = doctorRepository.findById(doctorId)
+                .orElseThrow(() ->
+                        new RuntimeException("Doctor not found!"));
+        
+        // ✅ Validate doctor belongs to hospital (unless SUPER_ADMIN)
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            if (!doctor.getDepartment().getHospital().getId()
+                    .equals(hospital.getId())) {
+                throw new RuntimeException(
+                        "Doctor does not belong to your hospital");
+            }
+        }
+        
         return appointmentRepository
                 .findByDoctorIdAndAppointmentDate(
                         doctorId, date)
@@ -125,7 +196,8 @@ public class AppointmentService {
 
     // POST - book appointment
     public AppointmentResponseDTO bookAppointment(
-            AppointmentRequestDTO dto) {
+            AppointmentRequestDTO dto,
+            Authentication authentication) {
         log.info("Booking appointment for patient: {}",
                 dto.getPatientId());
 
@@ -140,6 +212,16 @@ public class AppointmentService {
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Doctor not found!"));
+
+        // ✅ Validate doctor belongs to patient's hospital (unless SUPER_ADMIN)
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            if (!doctor.getDepartment().getHospital().getId()
+                    .equals(hospital.getId())) {
+                throw new RuntimeException(
+                        "Doctor does not belong to your hospital");
+            }
+        }
 
         // Check doctor is available
         if (!doctor.isAvailable()) {
@@ -321,6 +403,7 @@ public class AppointmentService {
             Long departmentId,
             LocalDate dateFrom,
             LocalDate dateTo,
+            Authentication authentication,
             int page, int size) {
 
         log.info("Searching appointments with filters");
@@ -335,6 +418,14 @@ public class AppointmentService {
                         departmentId))
                 .and(AppointmentSpecification.dateFrom(dateFrom))
                 .and(AppointmentSpecification.dateTo(dateTo));
+
+        // ✅ Add hospital scoping (unless SUPER_ADMIN)
+        if (!hospitalContextService.isSuperAdmin(authentication)) {
+            Hospital hospital = hospitalContextService.getCurrentUserHospital(authentication);
+            spec = spec.and((root, query, cb) ->
+                    cb.equal(root.get("doctor").get("department").get("hospital").get("id"),
+                            hospital.getId()));
+        }
 
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by("appointmentDate").descending());

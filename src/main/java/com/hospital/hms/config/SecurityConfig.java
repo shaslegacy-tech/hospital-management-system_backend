@@ -141,6 +141,37 @@ public class SecurityConfig {
                                 "ADMIN", "DOCTOR",
                                 "PATIENT", "RECEPTIONIST")
 
+                        // ── Public Hospital Registration ─────────────────────────
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/hospitals/register"
+                        )
+                        .permitAll()
+
+                        // ── Public Hospital Discovery ────────────────────────────
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/hospitals",
+                                "/api/hospitals/*"
+                        )
+                        .permitAll()
+
+                        // ── Hospital Platform Management ─────────────────────────
+                        .requestMatchers("/api/hospitals/pending")
+                        .hasRole("SUPER_ADMIN")
+
+                        .requestMatchers("/api/hospitals/all")
+                        .hasRole("SUPER_ADMIN")
+
+                        .requestMatchers("/api/hospitals/*/approve")
+                        .hasRole("SUPER_ADMIN")
+
+                        .requestMatchers("/api/hospitals/*/reject")
+                        .hasRole("SUPER_ADMIN")
+
+                        .requestMatchers("/api/hospitals/*/suspend")
+                        .hasRole("SUPER_ADMIN")
+
                         // ── Fallback ──────────────────────────────
                         .anyRequest().authenticated()
                 )
