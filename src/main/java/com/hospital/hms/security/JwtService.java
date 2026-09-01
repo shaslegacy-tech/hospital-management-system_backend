@@ -20,10 +20,17 @@ public class JwtService {
         return Keys.hmacShaKeyFor(SECRET.getBytes());
     }
 
-    public String generateToken(String email, String role) {
+    public String generateToken(
+    String email,
+    // Long userId,
+    String role
+    // Long hospitalId
+) {
         return Jwts.builder()
                 .subject(email)
                 .claim("role", role)
+                // .claim("userId", userId)
+                // .claim("hospitalId", hospitalId)
                 .issuedAt(new Date())
                 .expiration(new Date(
                         System.currentTimeMillis() + EXPIRATION))

@@ -14,4 +14,7 @@ public class AuthResponseDTO {
     private String phone;
     private Role role;
     private String hospitalStatus;
+
+    // private Long hospitalId;
+    // private String hospitalName;
 }
