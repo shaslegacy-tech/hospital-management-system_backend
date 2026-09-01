@@ -56,6 +56,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs")
                         .permitAll()
+                        .requestMatchers("/api/public/**").permitAll()
 
                         // ── File Upload ───────────────────────────
                         .requestMatchers("/api/files/**")
