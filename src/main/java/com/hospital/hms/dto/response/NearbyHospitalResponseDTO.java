@@ -16,4 +16,5 @@ public class NearbyHospitalResponseDTO {
     private String description;
     private String logoUrl;
     private double distanceKm;
+    private boolean verified;
 }

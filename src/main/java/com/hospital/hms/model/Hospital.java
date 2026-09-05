@@ -1,8 +1,12 @@
 package com.hospital.hms.model;
  
 import com.hospital.hms.model.enums.HospitalStatus;
+import com.hospital.hms.model.enums.SubscriptionPlan;
+
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDateTime;
+
  
 @Entity
 @Table(name = "hospitals")
@@ -37,4 +41,12 @@ public class Hospital extends BaseEntity {
  
     @Enumerated(EnumType.STRING)
     private HospitalStatus status = HospitalStatus.PENDING;
+
+    @Enumerated(EnumType.STRING)
+    private SubscriptionPlan subscriptionPlan;
+
+    @Column(nullable = false)
+    private boolean verified = false;
+
+    private LocalDateTime subscriptionExpiresAt;
 }

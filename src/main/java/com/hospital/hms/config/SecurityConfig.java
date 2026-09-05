@@ -207,6 +207,7 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
+                "http://localhost:3001",
                 "https://aarogyaai-ojasya.vercel.app"
         ));
         configuration.setAllowedMethods(List.of(

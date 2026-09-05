@@ -2,13 +2,21 @@ package com.hospital.hms.controller;
 
 import com.hospital.hms.dto.request.HospitalRegisterRequestDTO;
 import com.hospital.hms.dto.response.HospitalResponseDTO;
+import com.hospital.hms.dto.response.PlatformStatsResponseDTO;
 import com.hospital.hms.model.Hospital;
+import com.hospital.hms.model.SubscriptionPayment;
 import com.hospital.hms.model.User;
 import com.hospital.hms.model.enums.HospitalStatus;
 import com.hospital.hms.model.enums.Role;
+import com.hospital.hms.model.enums.SubscriptionPaymentStatus;
+import com.hospital.hms.model.enums.SubscriptionPlan;
+import com.hospital.hms.repository.DoctorRepository;
 import com.hospital.hms.repository.HospitalRepository;
+import com.hospital.hms.repository.PatientRepository;
+import com.hospital.hms.repository.SubscriptionPaymentRepository;
 import com.hospital.hms.repository.UserRepository;
 import com.hospital.hms.service.GeocodingService;
+import com.hospital.hms.service.SubscriptionPlanConfig;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +30,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,12 +50,18 @@ public class HospitalController {
     @Autowired
     private GeocodingService geocodingService;
 
+    @Autowired private DoctorRepository doctorRepository;
+    @Autowired private PatientRepository patientRepository;
+    @Autowired private SubscriptionPaymentRepository subscriptionPaymentRepository;
+    @Autowired private SubscriptionPlanConfig planConfig;
+
     private HospitalResponseDTO toDTO(Hospital h) {
         return new HospitalResponseDTO(
                 h.getId(), h.getName(), h.getAddress(), h.getCity(), h.getState(),
                 h.getPincode(), h.getLatitude(), h.getLongitude(), h.getContactPhone(),
                 h.getContactEmail(), h.getDescription(), h.getLogoUrl(),
-                h.getStatus().toString());
+                h.getStatus().toString(), h.isVerified()
+        );
     }
 
     @Operation(summary = "Register a new hospital", description = "Public endpoint. Creates the hospital (status " +
@@ -148,14 +163,37 @@ public class HospitalController {
                         .stream().map(this::toDTO).collect(Collectors.toList()));
     }
 
-    @PutMapping("/{id}/approve")
+   @PutMapping("/{id}/approve")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<HospitalResponseDTO> approveHospital(@PathVariable Long id) {
+    public ResponseEntity<HospitalResponseDTO> approveHospital(
+            @PathVariable Long id) {
+
         Hospital hospital = hospitalRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Hospital not found!"));
+                .orElseThrow(() ->
+                        new RuntimeException("Hospital not found!"));
+
+        // Approve hospital
         hospital.setStatus(HospitalStatus.APPROVED);
-        log.info("Hospital {} approved", id);
-        return ResponseEntity.ok(toDTO(hospitalRepository.save(hospital)));
+
+        // Automatically grant 30-day free trial
+        hospital.setSubscriptionPlan(SubscriptionPlan.TRIAL);
+
+        hospital.setSubscriptionExpiresAt(
+                LocalDateTime.now().plusDays(30)
+        );
+
+        Hospital savedHospital =
+                hospitalRepository.save(hospital);
+
+        log.info(
+                "Hospital {} approved with free trial until {}",
+                savedHospital.getId(),
+                savedHospital.getSubscriptionExpiresAt()
+        );
+
+        return ResponseEntity.ok(
+                toDTO(savedHospital)
+        );
     }
 
     @PutMapping("/{id}/reject")
@@ -177,4 +215,68 @@ public class HospitalController {
         log.warn("Hospital {} suspended", id);
         return ResponseEntity.ok(toDTO(hospitalRepository.save(hospital)));
     }
+
+    @Operation(summary = "Platform-wide stats — SUPER_ADMIN only")
+        @GetMapping("/platform-stats")
+        @PreAuthorize("hasRole('SUPER_ADMIN')")
+        public ResponseEntity<PlatformStatsResponseDTO> getPlatformStats() {
+        List<Hospital> all = hospitalRepository.findAll();
+        
+        long approved = all.stream().filter(h -> h.getStatus() == HospitalStatus.APPROVED).count();
+        long pending = all.stream().filter(h -> h.getStatus() == HospitalStatus.PENDING).count();
+        long suspended = all.stream().filter(h -> h.getStatus() == HospitalStatus.SUSPENDED).count();
+        
+        long trial = all.stream()
+                .filter(h -> h.getSubscriptionPlan() == SubscriptionPlan.TRIAL
+                && h.getSubscriptionExpiresAt() != null
+                && h.getSubscriptionExpiresAt().isAfter(LocalDateTime.now()))
+                .count();
+        long basic = all.stream()
+                .filter(h -> h.getSubscriptionPlan() == SubscriptionPlan.BASIC
+                && h.getSubscriptionExpiresAt() != null
+                && h.getSubscriptionExpiresAt().isAfter(LocalDateTime.now()))
+                .count();
+        long premium = all.stream()
+                .filter(h -> h.getSubscriptionPlan() == SubscriptionPlan.PREMIUM
+                && h.getSubscriptionExpiresAt() != null
+                && h.getSubscriptionExpiresAt().isAfter(LocalDateTime.now()))
+                .count();
+        
+        double mrr = (basic * planConfig.getMonthlyPrice(SubscriptionPlan.BASIC))
+                + (premium * planConfig.getMonthlyPrice(SubscriptionPlan.PREMIUM));
+        
+        double totalRevenue = subscriptionPaymentRepository.findAll().stream()
+                .filter(p -> p.getStatus() == SubscriptionPaymentStatus.SUCCESS)
+                .mapToDouble(payment -> payment.getAmount())
+                .sum();
+        
+        PlatformStatsResponseDTO stats = new PlatformStatsResponseDTO(
+                all.size(), approved, pending, suspended,
+                trial, basic, premium,  
+                mrr, totalRevenue,
+                doctorRepository.count(),
+                patientRepository.count()
+        );
+        
+        return ResponseEntity.ok(stats);
+        }
+
+        @PutMapping("/{id}/verify")
+        @PreAuthorize("hasRole('SUPER_ADMIN')")
+        public ResponseEntity<HospitalResponseDTO> verifyHospital(@PathVariable Long id) {
+        Hospital hospital = hospitalRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Hospital not found!"));
+        hospital.setVerified(true);
+        log.info("Hospital {} marked verified", id);
+        return ResponseEntity.ok(toDTO(hospitalRepository.save(hospital)));
+        }
+        
+        @PutMapping("/{id}/unverify")
+        @PreAuthorize("hasRole('SUPER_ADMIN')")
+        public ResponseEntity<HospitalResponseDTO> unverifyHospital(@PathVariable Long id) {
+        Hospital hospital = hospitalRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Hospital not found!"));
+        hospital.setVerified(false);
+        return ResponseEntity.ok(toDTO(hospitalRepository.save(hospital)));
+        }
 }

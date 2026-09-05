@@ -50,7 +50,8 @@ public class PublicDiscoveryController {
                 double distance = DistanceCalculator.distanceKm(lat, lng, h.getLatitude(), h.getLongitude());
                 return new NearbyHospitalResponseDTO(
                     h.getId(), h.getName(), h.getAddress(), h.getCity(), h.getState(),
-                    h.getDescription(), h.getLogoUrl(), Math.round(distance * 10.0) / 10.0
+                    h.getDescription(), h.getLogoUrl(), Math.round(distance * 10.0) / 10.0,
+                    h.isVerified()
                 );
             })
             .filter(dto -> dto.getDistanceKm() <= radiusKm)
