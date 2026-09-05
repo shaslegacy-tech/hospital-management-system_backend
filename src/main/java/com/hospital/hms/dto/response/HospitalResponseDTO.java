@@ -21,4 +21,5 @@ public class HospitalResponseDTO {
     private String description;
     private String logoUrl;
     private String status;
+    private boolean verified;
 }
